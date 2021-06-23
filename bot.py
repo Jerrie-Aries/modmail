@@ -1285,7 +1285,7 @@ class ModmailBot(commands.Bot):
             if not thread.recipient.dm_channel:
                 await thread.recipient.create_dm()
             try:
-                linked_message = await thread.find_linked_message_from_dm(
+                linked_messages = await thread.find_linked_message_from_dm(
                     message, either_direction=True
                 )
             except ValueError as e:
@@ -1296,21 +1296,21 @@ class ModmailBot(commands.Bot):
             if not thread:
                 return
             try:
-                _, *linked_message = await thread.find_linked_messages(
+                _, linked_messages = await thread.find_linked_messages(
                     message.id, either_direction=True
                 )
             except ValueError as e:
                 logger.warning("Failed to find linked message for reactions: %s", e)
                 return
 
-        if self.config["transfer_reactions"] and linked_message is not [None]:
+        if self.config["transfer_reactions"] and linked_messages is not [None]:
             if payload.event_type == "REACTION_ADD":
-                for msg in linked_message:
+                for msg in linked_messages:
                     await self.add_reaction(msg, reaction)
                 await self.add_reaction(message, reaction)
             else:
                 try:
-                    for msg in linked_message:
+                    for msg in linked_messages:
                         await msg.remove_reaction(reaction, self.user)
                     await message.remove_reaction(reaction, self.user)
                 except (discord.HTTPException, discord.InvalidArgument) as e:
@@ -1444,14 +1444,22 @@ class ModmailBot(commands.Bot):
             if not thread:
                 return
             try:
-                message = await thread.find_linked_message_from_dm(message)
+                linked_messages = await thread.find_linked_message_from_dm(message)
             except ValueError as e:
                 if str(e) != "Thread channel message not found.":
                     logger.debug("Failed to find linked message to delete: %s", e)
                 return
-            embed = message.embeds[0]
-            embed.set_footer(text=f"{embed.footer.text} (deleted)", icon_url=embed.footer.icon_url)
-            await message.edit(embed=embed)
+            for msg in linked_messages:
+                if isinstance(msg.channel, discord.TextChannel):
+                    # just for thread channel, we don't actually delete the message
+                    # but just mark it as '(deleted)'
+                    embed = msg.embeds[0]
+                    embed.set_footer(
+                        text=f"{embed.footer.text} (deleted)", icon_url=embed.footer.icon_url
+                    )
+                    await msg.edit(embed=embed)
+                else:
+                    await msg.delete()
             return
 
         if message.author != self.user:
@@ -1459,15 +1467,6 @@ class ModmailBot(commands.Bot):
 
         thread = await self.threads.find(channel=message.channel)
         if not thread:
-            return
-
-        audit_logs = self.modmail_guild.audit_logs(
-            limit=10, action=discord.AuditLogAction.message_delete
-        )
-
-        entry = await audit_logs.find(lambda a: a.target == self.user)
-
-        if entry is None:
             return
 
         try:

@@ -24,6 +24,7 @@ __all__ = [
     "match_title",
     "match_user_id",
     "match_other_recipients",
+    "get_joint_id",
     "create_not_found_embed",
     "parse_alias",
     "normalize_alias",
@@ -225,7 +226,7 @@ TOPIC_TITLE_REGEX = re.compile(r"\bTitle: (.*)\n(?:User ID: )\b", flags=re.IGNOR
 TOPIC_UID_REGEX = re.compile(r"\bUser ID:\s*(\d{17,21})\b", flags=re.IGNORECASE)
 
 
-def match_title(text: str) -> int:
+def match_title(text: str) -> str:
     """
     Matches a title in the format of "Title: XXXX"
 
@@ -237,7 +238,7 @@ def match_title(text: str) -> int:
     Returns
     -------
     Optional[str]
-        The title if found
+        The title if found.
     """
     match = TOPIC_TITLE_REGEX.search(text)
     if match is not None:
@@ -264,24 +265,46 @@ def match_user_id(text: str) -> int:
     return -1
 
 
-def match_other_recipients(text: str) -> int:
+def match_other_recipients(text: str) -> typing.List[int]:
     """
     Matches a title in the format of "Other Recipients: XXXX,XXXX"
 
     Parameters
     ----------
     text : str
-        The text of the user ID.
+        The text to search for other recipients IDs.
 
     Returns
     -------
-    Optional[str]
-        The title if found
+    List[int]
+        The list of other recipients IDs.
     """
     match = TOPIC_OTHER_RECIPIENTS_REGEX.search(text)
     if match is not None:
         return list(map(int, match.group(1).split(",")))
     return []
+
+
+def get_joint_id(message: discord.Message) -> typing.Optional[int]:
+    """
+    Get the joint ID from `discord.Embed().author.url`.
+
+    Parameters
+    -----------
+    message : discord.Message
+        The discord.Message object.
+
+    Returns
+    -------
+    int
+        The joint ID if found. Otherwise, None.
+    """
+    if message.embeds:
+        try:
+            return int(getattr(message.embeds[0].author, "url", "").split("#")[-1])
+        except ValueError:
+            pass
+    return None
 
 
 def create_not_found_embed(word, possibilities, name, n=2, cutoff=0.6) -> discord.Embed:
