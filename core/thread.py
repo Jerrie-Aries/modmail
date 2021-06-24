@@ -502,30 +502,36 @@ class Thread:
 
         # Thread closed message
 
-        embed = discord.Embed(
-            title=self.bot.config["thread_close_title"], color=self.bot.error_color,
-        )
-        if self.bot.config["show_timestamp"]:
-            embed.timestamp = datetime.utcnow()
-
-        message = self.bot.formatter.format(
-            message, closer=closer, loglink=log_url, logkey=log_data["key"] if log_data else None
-        )
-
-        footer = self.bot.config["thread_close_footer"]
-        embed.set_footer(text=footer, icon_url=self.bot.guild.icon_url)
-
         if not silent:
             for user in self.recipients:
+                if user is None:
+                    continue
+
+                embed = discord.Embed(
+                    title=self.bot.config["thread_close_title"], color=self.bot.error_color,
+                )
+                if self.bot.config["show_timestamp"]:
+                    embed.timestamp = datetime.utcnow()
+                footer = self.bot.config["thread_close_footer"]
+                embed.set_footer(text=footer, icon_url=self.bot.guild.icon_url)
+
                 if not message:
                     if user.id == closer.id:
-                        message = self.bot.config["thread_self_close_response"]
+                        desc = self.bot.config["thread_self_close_response"]
                     else:
-                        message = self.bot.config["thread_close_response"]
-                    embed.description = message
+                        desc = self.bot.config["thread_close_response"]
+                else:
+                    desc = message
 
-                if user is not None:
-                    tasks.append(user.send(embed=embed))
+                desc = self.bot.formatter.format(
+                    desc,
+                    closer=closer,
+                    loglink=log_url,
+                    logkey=log_data["key"] if log_data else None,
+                )
+                embed.description = desc
+
+                tasks.append(user.send(embed=embed))
 
         if delete_channel:
             tasks.append(self.channel.delete())
