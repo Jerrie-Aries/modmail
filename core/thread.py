@@ -761,7 +761,7 @@ class Thread:
                 return linked_messages
 
         for user in self.recipients:
-            if user == message.author:
+            if user.dm_channel == message.channel:
                 continue
             async for other_msg in user.history():
                 if either_direction:
