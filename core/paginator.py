@@ -88,12 +88,12 @@ class PaginatorSession:
         for k, v in self._buttons_map.items():
             if v is None:
                 continue
-            elif self.current == self.first_page() and k in ("<<", "<"):
-                self._buttons_map[k].disabled = True
-            elif self.current == self.last_page() and k in (">>", ">"):
-                self._buttons_map[k].disabled = True
+            elif (self.current == self.first_page() and k in ("<<", "<")) or (
+                self.current == self.last_page() and k in (">>", ">")
+            ):
+                v.disabled = True
             else:
-                self._buttons_map[k].disabled = False
+                v.disabled = False
 
     async def create_base(self, item) -> None:
         """
