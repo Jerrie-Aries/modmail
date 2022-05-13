@@ -88,8 +88,11 @@ class PaginatorSession:
         for k, v in self._buttons_map.items():
             if v is None:
                 continue
-            elif (self.current == self.first_page() and k in ("<<", "<")) or (
-                self.current == self.last_page() and k in (">>", ">")
+            elif any(
+                (
+                    self.current == self.first_page() and k in ("<<", "<"),
+                    self.current == self.last_page() and k in (">>", ">"),
+                )
             ):
                 v.disabled = True
             else:
