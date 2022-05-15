@@ -1,0 +1,8 @@
+version: "1"
+rules:
+  - base: master
+    upstream: Jerrie-Aries:master
+    mergeMethod: hardreset
+  - base: development
+    upstream: Jerrie-Aries:development
+    mergeMethod: hardreset
