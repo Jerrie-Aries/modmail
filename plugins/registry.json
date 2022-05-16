@@ -1,30 +1,21 @@
 {
-    "close_message": {
-        "repository": "python-discord/modmail-plugins",
-        "branch": "main",
-        "description": "Add a ?closemessage command that will close the thread after 15 minutes with a default message.",
+    "profanity-filter": {
+        "repository": "kyb3r/modmail-plugins",
+        "branch": "master",
+        "description": "Checks for profanity in a message using machine learning and deletes it.",
         "bot_version": "2.20.1",
-        "title": "Close message",
-        "icon_url": "https://i.imgur.com/ev7BFMz.png",
-        "thumbnail_url": "https://i.imgur.com/ev7BFMz.png"
+        "title": "Profanity Filter Plugin",
+        "icon_url": "https://i.imgur.com/951szZ3.jpg",
+        "thumbnail_url": "https://i.imgur.com/951szZ3.jpg"
     },
-    "mdlink": {
-        "repository": "python-discord/modmail-plugins",
-        "branch": "main",
-        "description": "Generate a ready to paste link to the thread logs.",
+    "music": {
+        "repository": "lorenzo132/modmail-plugins",
+        "branch": "master",
+        "description": "Play your favourite music on your bot! Note: Only works on VPS follow this guide: https://gist.github.com/lorenzo132/5ef328e5dfcfaec19cb81dc7a63eaffa",
         "bot_version": "2.20.1",
-        "title": "MDLink",
-        "icon_url": "https://i.imgur.com/JA2E63R.png",
-        "thumbnail_url": "https://i.imgur.com/JA2E63R.png"
-    },
-    "reply_cooldown": {
-        "repository": "python-discord/modmail-plugins",
-        "branch": "main",
-        "description": "Forbid you from sending the same message twice in ten seconds.",
-        "bot_version": "2.20.1",
-        "title": "Reply cooldown",
-        "icon_url": "https://i.imgur.com/FtRQveT.png",
-        "thumbnail_url": "https://i.imgur.com/FtRQveT.png"
+        "title": "Music",
+        "icon_url": "https://i.imgur.com/R2olclk.png",
+        "thumbnail_url": "https://i.imgur.com/xuoQjPu.gif"
     },
     "dragory-migrate": {
         "repository": "kyb3r/modmail-plugins",
@@ -34,15 +25,6 @@
         "title": "Dragory Logs Migration",
         "icon_url": "https://cdn1.iconfinder.com/data/icons/web-hosting-2-4/52/200-512.png",
         "thumbnail_url": "https://cdn1.iconfinder.com/data/icons/web-hosting-2-4/52/200-512.png"
-    },
-    "music": {
-        "repository": "Taaku18/modmail-plugins",
-        "branch": "master",
-        "description": "Play wonderfull jams through your modmail!",
-        "bot_version": "2.20.1",
-        "title": "music",
-        "icon_url": "https://i.imgur.com/JmJPX5W.gif",
-        "thumbnail_url": "https://i.imgur.com/jrYL7F8.gif"
     },
     "media-only": {
         "repository": "lorenzo132/modmail-plugins",
@@ -161,13 +143,13 @@
         "thumbnail_url": "http://www.pngmart.com/files/7/Statistics-PNG-Clipart.png"
     },
     "moderation": {
-        "repository": "Vincysuper07/modmail-plugins",
-        "branch": "main",
+        "repository": "xPolar/modmail-plugins",
+        "branch": "master",
         "description": "Moderate your server with Modmail, bring the Mod to Modmail!",
-        "bot_version": "3.6.2",
+        "bot_version": "3.0.3",
         "title": "Moderate your server",
-        "icon_url": "https://cdn.discordapp.com/attachments/759829573654544454/773535811143598110/ad2e4d6e7b90ca6005a5038e22b099cc.png",
-        "thumbnail_url": "https://cdn.discordapp.com/attachments/759829573654544454/773535811143598110/ad2e4d6e7b90ca6005a5038e22b099cc.png"
+        "icon_url": "https://cdn.discordapp.com/attachments/539943767562780704/601485194196680704/wGFmzZq.png",
+        "thumbnail_url": "https://cdn.discordapp.com/attachments/539943767562780704/601485194196680704/wGFmzZq.png"
     },
     "serverstats": {
         "repository": "dazvise/modmail-plugins",
@@ -181,7 +163,7 @@
     "suggest": {
         "repository": "realcyguy/modmail-plugins",
         "branch": "master",
-        "description": "Send suggestions to a selected server! It has accepting, denying, and moderation-ing.",
+        "description": "Send suggestions to a selected server! It even has moderation...",
         "bot_version": "3.4.1",
         "title": "Suggest stuff.",
         "icon_url": "https://i.imgur.com/qtE7AH8.png",
@@ -205,6 +187,15 @@
         "icon_url": "https://cdn.discordapp.com/attachments/717029057635549274/717033838966210601/Slow_mode_-_icon.png",
         "thumbnail_url": "https://cdn.discordapp.com/attachments/717029057635549274/717029110907666482/Slow_mode_plugin_-_thumbnail.png"
     },
+    "publish": {
+        "repository": "codeinteger6/modmail-plugins",
+        "branch": "master",
+        "description": "Publish messages sent in announcement channels.",
+        "bot_version": "3.5.0",
+        "title": "Publish",
+        "icon_url": "https://user-images.githubusercontent.com/44692189/89184422-96de3600-d5ba-11ea-98ea-d096aa385ad5.png",
+        "thumbnail_url": "https://user-images.githubusercontent.com/44692189/89184422-96de3600-d5ba-11ea-98ea-d096aa385ad5.png"
+    },
     "translate": {
         "repository": "WebKide/modmail-plugins",
         "branch": "master",
@@ -213,39 +204,5 @@
         "title": "Translate",
         "icon_url": "https://i.imgur.com/yeHFKgl.png",
         "thumbnail_url": "https://i.imgur.com/yeHFKgl.png"
-    },
-    "countdowns": {
-        "repository": "fourjr/modmail-plugins",
-        "branch": "master",
-        "description": "Setup a countdown voice channel in your server!",
-        "bot_version": "3.6.2",
-        "title": "Countdowns",
-        "icon_url": "https://cdn.discordapp.com/avatars/180314310298304512/7552e0089004079304cc9912d13ac81d.png",
-        "thumbnail_url": "https://cdn.discordapp.com/avatars/180314310298304512/7552e0089004079304cc9912d13ac81d.png"
-    },
-    "action": {
-        "repository": "6days9weeks/modmail-plugins",
-        "branch": "master",
-        "description": "Have fun with others by hugging them or giving them pats~!!",
-        "title": "Action",
-        "icon_url": "https://media.discordapp.net/attachments/720733784970100776/820933433579798528/689105042212388965.png",
-        "thumbnail_url": "https://data.whicdn.com/images/58526601/original.gif"
-    },
-    "menu": {
-        "repository": "fourjr/modmail-plugins",
-        "branch": "master",
-        "description": "Adds reaction-based menus into thread creates. Check out `?configmenu`",
-        "title": "Menus",
-        "bot_version": "3.9.0",
-        "icon_url": "https://cdn.discordapp.com/avatars/180314310298304512/7552e0089004079304cc9912d13ac81d.png",
-        "thumbnail_url": "https://cdn.discordapp.com/avatars/180314310298304512/7552e0089004079304cc9912d13ac81d.png"
-    },
-    "claim": {
-        "repository": "fourjr/modmail-plugins",
-        "branch": "master",
-        "description": "Allows supporters to claim thread by sending ?claim in the thread channel",
-        "title": "Claim Thread",
-        "icon_url": "https://cdn.discordapp.com/avatars/180314310298304512/7552e0089004079304cc9912d13ac81d.png",
-        "thumbnail_url": "https://cdn.discordapp.com/avatars/180314310298304512/7552e0089004079304cc9912d13ac81d.png"
     }
 }
