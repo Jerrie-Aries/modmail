@@ -228,7 +228,7 @@ class Changelog:
             The newly created `Changelog` parsed from the `file`.
         """
         changelog_md = Path(__file__).absolute().parent.parent / "CHANGELOG.md"
-        branch = "master" if not bot.version.is_prerelease else "development"
+        branch = "main-master" if not bot.version.is_prerelease else "main-development"
         file_directory = file_directory or changelog_md
 
         with open(file_directory) as resp:
