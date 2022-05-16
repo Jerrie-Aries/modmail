@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Discord Server
-    url: https://discord.gg/etJNHCQ
-    about: Please ask hosting-related questions here before creating an issue.
+  - name: Share an idea or ask a question.
+    url: https://github.com/Jerrie-Aries/modmail/discussions
+    about: You can share your ideas or ask questions here before creating an issue.

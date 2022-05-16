@@ -20,6 +20,7 @@ body:
         - Heroku
         - Systemd
         - PM2
+        - Repl.it
         - Patreon
         - Other
     validations:
