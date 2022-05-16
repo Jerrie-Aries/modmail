@@ -65,7 +65,7 @@ class Version:
         self.lines: str = lines.strip()
         self.fields: Dict[str, str] = {}
         self.changelog_url: str = (
-            f"https://github.com/kyb3r/modmail/blob/{branch}/CHANGELOG.md"
+            f"https://github.com/Jerrie-Aries/modmail/blob/{branch}/CHANGELOG.md"
         )
         self.description: str = ""
         self.parse()
@@ -196,14 +196,14 @@ class Changelog:
         res = await proc.stdout.read()
         branch = res.decode("utf-8").rstrip()
         if not branch or err:
-            branch = "master" if not bot.version.is_prerelease else "development"
+            branch = "main-master" if not bot.version.is_prerelease else "main-development"
 
-        if branch not in ("master", "development"):
-            branch = "master"
+        if branch not in ("main-master", "main-development"):
+            branch = "main-master"
 
         url = (
             url
-            or f"https://raw.githubusercontent.com/kyb3r/modmail/{branch}/CHANGELOG.md"
+            or f"https://raw.githubusercontent.com/Jerrie-Aries/modmail/{branch}/CHANGELOG.md"
         )
         logger.debug("Fetching changelog from GitHub.")
 
