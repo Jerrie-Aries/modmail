@@ -30,14 +30,6 @@
     "LOG_URL": {
       "description": "The url of the log viewer app for viewing self-hosted logs.",
       "required": true
-    },
-    "COC_EMAIL": {
-      "description": "Email to log in to the Clash API.",
-      "required": true
-    },
-    "COC_PASS": {
-      "description": "Password to log in to the Clash API.",
-      "required": true
     }
   }
 }
