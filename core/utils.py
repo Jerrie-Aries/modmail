@@ -1,43 +1,69 @@
+from __future__ import annotations
+
 import base64
 import functools
 import re
-import typing
+import string
 from difflib import get_close_matches
 from distutils.util import strtobool as _stb  # pylint: disable=import-error
+from io import BytesIO
 from itertools import takewhile, zip_longest
+from typing import (
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+    Union,
+    TYPE_CHECKING,
+)
 from urllib import parse
 
 import discord
-from discord.ext import commands
+from discord.utils import escape_markdown
+
+from core.ext import commands
+
+if TYPE_CHECKING:
+    from bot import ModmailBot
+    from core.thread import ModmailThread
+    from core.types_ext.raw_data import ThreadMessagePayload
+
 
 __all__ = [
-    "strtobool",
     "User",
-    "truncate",
-    "format_preview",
-    "is_image_url",
-    "parse_image_url",
-    "human_join",
-    "days",
+    "bold",
     "cleanup_code",
-    "parse_channel_topic",
-    "match_title",
-    "match_user_id",
-    "match_other_recipients",
-    "create_thread_channel",
+    "code_block",
     "create_not_found_embed",
-    "parse_alias",
-    "normalize_alias",
-    "format_description",
-    "trigger_typing",
+    "create_thread_channel",
+    "days",
+    "escape",
     "escape_code_block",
-    "tryint",
+    "format_channel_name",
+    "format_description",
+    "format_preview",
+    "generate_topic_string",
     "get_top_role",
-    "get_joint_id",
+    "human_join",
+    "is_image_url",
+    "match_user_id",
+    "normalize_alias",
+    "normalize_smartquotes",
+    "parse_alias",
+    "parse_image_url",
+    "plural",
+    "strtobool",
+    "text_to_file",
+    "trigger_typing",
+    "truncate",
+    "tryint",
 ]
 
 
-def strtobool(val):
+def strtobool(val: Union[str, bool]) -> Union[int, bool]:
     if isinstance(val, bool):
         return val
     try:
@@ -58,7 +84,7 @@ class User(commands.MemberConverter):
     """
 
     # noinspection PyCallByClass,PyTypeChecker
-    async def convert(self, ctx, argument):
+    async def convert(self, ctx: commands.Context, argument: str) -> discord.Member:
         try:
             return await commands.MemberConverter().convert(ctx, argument)
         except commands.BadArgument:
@@ -94,13 +120,13 @@ def truncate(text: str, max: int = 50) -> str:  # pylint: disable=redefined-buil
     return text[: max - 3].strip() + "..." if len(text) > max else text
 
 
-def format_preview(messages: typing.List[typing.Dict[str, typing.Any]]):
+def format_preview(messages: List[ThreadMessagePayload]) -> str:
     """
-    Used to format previews.
+    Used to format previews of log embeds.
 
     Parameters
     ----------
-    messages : List[Dict[str, Any]]
+    messages : List[ThreadMessagePayload]
         A list of messages.
 
     Returns
@@ -122,7 +148,7 @@ def format_preview(messages: typing.List[typing.Dict[str, typing.Any]]):
     return out or "No Messages"
 
 
-def is_image_url(url: str, **kwargs) -> str:
+def is_image_url(url: str, **kwargs) -> bool:
     """
     Check if the URL is pointing to an image.
 
@@ -136,18 +162,14 @@ def is_image_url(url: str, **kwargs) -> str:
     bool
         Whether the URL is a valid image URL.
     """
-    if url.startswith("https://gyazo.com") or url.startswith("http://gyazo.com"):
-        # gyazo support
-        url = re.sub(
-            r"(http[s]?:\/\/)((?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*(),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+)",
-            r"\1i.\2.png",
-            url,
-        )
+    url = parse_image_url(url, **kwargs)
+    if url:
+        return True
 
-    return parse_image_url(url, **kwargs)
+    return False
 
 
-def parse_image_url(url: str, *, convert_size=True) -> str:
+def parse_image_url(url: str, *, convert_size: bool = True) -> str:
     """
     Convert the image URL into a sized Discord avatar.
 
@@ -155,12 +177,21 @@ def parse_image_url(url: str, *, convert_size=True) -> str:
     ----------
     url : str
         The URL to convert.
+    convert_size : bool
+        Convert the size of the image.
 
     Returns
     -------
     str
         The converted URL, or '' if the URL isn't in the proper format.
     """
+    # gyazo support
+    url = re.sub(
+        r"(http[s]?://)(gyazo\.com(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*(),]|%[0-9a-fA-F][0-9a-fA-F])+)",
+        r"\1i.\2.png",
+        url,
+    )
+
     types = [".png", ".jpg", ".gif", ".jpeg", ".webp"]
     url = parse.urlsplit(url)
 
@@ -172,13 +203,325 @@ def parse_image_url(url: str, *, convert_size=True) -> str:
     return ""
 
 
-def human_join(strings):
-    if len(strings) <= 2:
-        return " or ".join(strings)
-    return ", ".join(strings[: len(strings) - 1]) + " or " + strings[-1]
+TOPIC_REGEX = re.compile(
+    r"^\(Modmail thread\)\n"
+    r"\bBot ID: (?P<bot_id>\d{17,21})\b\n"
+    r"\bUser ID: (?P<user_id>\d{17,21})\b"
+)
+UID_REGEX = re.compile(r"\bUser ID:\s*(\d{17,21})\b", flags=re.IGNORECASE)
 
 
-def days(day: typing.Union[str, int]) -> str:
+def generate_topic_string(bot_id: int, user_id: int) -> str:
+    """
+    Generates a formatted string for channel topic, containing Bot ID and User ID etc.
+
+    Please note, this format will be used for regex matching when populating cache (on startup).
+    If changes is made, please also check `utils.TOPIC_REGEX` to reflect the changes.
+
+    Parameters
+    -----------
+    bot_id : int
+        The bot ID.
+    user_id : int
+        The user ID.
+    """
+    return f"(Modmail thread)\nBot ID: {bot_id}\nUser ID: {user_id}"
+
+
+def match_user_id(text: str, bot_id: int = None) -> int:
+    """
+    Matches a user ID in the format of "User ID: 12345".
+
+    Parameters
+    ----------
+    text : str
+        The text to search for user ID.
+    bot_id : Optional[int]
+        The bot ID. This is used to match the channel topic format using the topic regex
+        matching before returning the user ID.
+        Only pass this if the text string is from thread channel topic.
+
+    Returns
+    -------
+    :class:`int`
+        The user ID if found. Otherwise, -1.
+    """
+    if bot_id is None:
+        match = UID_REGEX.search(text)
+        if match is None:
+            return -1
+        user_id = int(match.group(1))
+    else:
+        # new: matching bot ID as well to make sure this method is unique
+        match = TOPIC_REGEX.search(text)
+        if match is None or int(match.group("bot_id")) != bot_id:
+            return -1
+        user_id = int(match.group("user_id"))
+    return user_id
+
+
+def create_not_found_embed(
+    word: str, possibilities: Iterable[str], name: str, n: int = 2, cutoff: float = 0.6
+) -> discord.Embed:
+    """
+    A not found Embed containing close match possibilities.
+    """
+    # Single reference of Color.red()
+    embed = discord.Embed(
+        color=discord.Color.red(),
+        description=f"**{name.capitalize()} `{word}` cannot be found.**",
+    )
+    val = get_close_matches(word, possibilities, n=n, cutoff=cutoff)
+    if val:
+        embed.description += "\nHowever, perhaps you meant...\n" + "\n".join(val)
+    return embed
+
+
+def parse_alias(alias: str) -> List[str]:
+    def encode_alias(m):
+        return "\x1AU" + base64.b64encode(m.group(1).encode()).decode() + "\x1AU"
+
+    def decode_alias(m):
+        return base64.b64decode(m.group(1).encode()).decode()
+
+    alias = re.sub(
+        r"(?:(?<=^)\s*(?<!\\)\"\s*|(?<=&&)\s*(?<!\\)\"\s*)(.+?)"
+        r"(?:\s*(?<!\\)\"\s*(?=&&)|\s*(?<!\\)\"\s*(?=$))",
+        encode_alias,
+        alias,
+    ).strip()
+
+    aliases = []
+    if not alias:
+        return aliases
+
+    for a in re.split(r"\s*&&\s*", alias):
+        a = re.sub("\x1AU(.+?)\x1AU", decode_alias, a)
+        if a[0] == a[-1] == '"':
+            a = a[1:-1]
+        aliases.append(a)
+
+    return aliases
+
+
+def normalize_alias(alias: str, message: str) -> List[str]:
+    aliases = parse_alias(alias)
+    contents = parse_alias(message)
+
+    final_aliases = []
+    for a, content in zip_longest(aliases, contents):
+        if a is None:
+            break
+
+        if content:
+            final_aliases.append(f"{a} {content}")
+        else:
+            final_aliases.append(a)
+
+    return final_aliases
+
+
+def format_description(i: int, names: Iterable[Optional[str]]) -> str:
+    return "\n".join(
+        ": ".join((str(a + i * 15), b))
+        for a, b in enumerate(takewhile(lambda x: x is not None, names), start=1)
+    )
+
+
+def get_top_role(member: discord.Member) -> discord.Role:
+    """
+    Returns the member's top hoisted role if any, otherwise member's top role.
+
+    Parameters
+    -----------
+    member : discord.Member
+        The member object.
+    """
+    roles = sorted(member.roles, key=lambda r: r.position, reverse=True)
+    role = discord.utils.find(lambda r: r.hoist, roles)
+
+    # if role is `None`, fallbacks to member's top role
+    return role or roles[0]
+
+
+if TYPE_CHECKING:
+    ErrorRaised = Tuple[str, Tuple[discord.CategoryChannel, str]]
+    Overwrites = Dict[Union[discord.Role, discord.Member], discord.PermissionOverwrite]
+
+
+async def create_thread_channel(
+    thread: ModmailThread,
+    recipient: Union[discord.Member, discord.User],
+    category: Optional[discord.CategoryChannel],
+    overwrites: Overwrites,
+    *,
+    name: str = None,
+    errors_raised: List[ErrorRaised] = None,
+    max_retry: int = 5,
+) -> discord.TextChannel:
+    """
+    A method to create a Modmail thread channel while handling possible errors that may occur.
+    """
+    bot = thread.bot
+    name = name or format_channel_name(recipient, bot.modmail_guild)
+    errors_raised = errors_raised or []
+
+    try:
+        channel = await bot.modmail_guild.create_text_channel(
+            name=name,
+            category=category,
+            overwrites=overwrites,
+            reason="Creating a thread channel.",
+            topic=generate_topic_string(bot.user.id, recipient.id),
+        )
+    except discord.HTTPException as e:
+        error = (e.text, (category, name))
+        if error in errors_raised or len(errors_raised) >= max_retry:
+            # Just raise the error to prevent infinite recursion after retrying
+            raise
+
+        errors_raised.append(error)
+
+        if "Maximum number of channels in category reached" in e.text:
+            fallback = None
+            fallback_id = bot.config["fallback_category_id"]
+            if fallback_id:
+                fallback = discord.utils.get(
+                    category.guild.categories, id=int(fallback_id)
+                )
+                if fallback and (
+                    len(fallback.channels) >= 50 or fallback.id == category.id
+                ):
+                    fallback = None
+
+            if not fallback:
+                fallback = await category.clone(name="Fallback Modmail")
+                bot.config.set("fallback_category_id", str(fallback.id))
+                await bot.config.update()
+
+            return await create_thread_channel(
+                thread,
+                recipient,
+                fallback,
+                overwrites,
+                errors_raised=errors_raised,
+                max_retry=max_retry,
+            )
+
+        if "Contains words not allowed" in e.text:
+            # try again but null-discrim (name could be banned)
+            return await create_thread_channel(
+                thread,
+                recipient,
+                category,
+                overwrites,
+                name=format_channel_name(recipient, bot.modmail_guild, force_null=True),
+                errors_raised=errors_raised,
+                max_retry=max_retry,
+            )
+
+        raise
+
+    return channel
+
+
+def format_channel_name(
+    author: Union[discord.Member, discord.User],
+    guild: discord.Guild,
+    exclude_channel: discord.TextChannel = None,
+    force_null: bool = False,
+) -> str:
+    """Sanitises a username for use with text channel names"""
+    name = author.name.lower()
+    if force_null:
+        name = "null"
+
+    name = new_name = (
+        "📩┋"
+        + (
+            "".join(n for n in name if n not in string.punctuation and n.isprintable())
+            or "null"
+        )
+        + f"-{author.discriminator}"
+    )
+
+    counter = 1
+    existed = set(c.name for c in guild.text_channels if c != exclude_channel)
+    while new_name in existed:
+        new_name = f"{name}_{counter}"  # multiple channels with same name
+        counter += 1
+
+    return new_name
+
+
+Coro = TypeVar("Coro")
+
+
+def trigger_typing(func: Coro) -> Coro:
+    """
+    Triggers a *typing...* indicator to the destination.
+
+    The indicator will go away after 10 seconds, or after a message is sent.
+    """
+
+    @functools.wraps(func)
+    async def wrapper(self, ctx: commands.Context, *args, **kwargs):
+        await ctx.typing()
+        return await func(self, ctx, *args, **kwargs)
+
+    return wrapper
+
+
+T = TypeVar("T")
+
+
+def tryint(x: T) -> Union[int, T]:
+    """
+    Converts the passed value to `int`. If the conversion fails, the passed value
+    will be returned without changes.
+    """
+    try:
+        return int(x)
+    except (ValueError, TypeError):
+        return x
+
+
+# Chat formatting
+
+
+def human_join(sequence: Sequence[str], delim: str = ", ", final: str = "or") -> str:
+    """
+    Get comma-separated list, with the last element joined with *or*.
+
+    Parameters
+    ----------
+    sequence : Sequence[str]
+        The items of the list to join together.
+    delim : str
+        The delimiter to join the sequence with. Defaults to ", ".
+        This will be ignored if the length of `sequence` is or less then 2, otherwise "final" will be used instead.
+    final : str
+        The final delimiter to format the string with. Defaults to "or".
+
+    Returns
+    --------
+    str
+        The formatted string, e.g. "seq_one, seq_two and seq_three".
+    """
+    size = len(sequence)
+    if size == 0:
+        return ""
+
+    if size == 1:
+        return sequence[0]
+
+    if size == 2:
+        return f"{sequence[0]} {final} {sequence[1]}"
+
+    return delim.join(sequence[:-1]) + f" {final} {sequence[-1]}"
+
+
+def days(day: Union[int, str]) -> str:
     """
     Humanize the number of days.
 
@@ -220,277 +563,167 @@ def cleanup_code(content: str) -> str:
     return content.strip("` \n")
 
 
-TOPIC_REGEX = re.compile(
-    r"(?:\bTitle:\s*(?P<title>.*)\n)?"
-    r"\bUser ID:\s*(?P<user_id>\d{17,21})\b"
-    r"(?:\nOther Recipients:\s*(?P<other_ids>\d{17,21}(?:(?:\s*,\s*)\d{17,21})*)\b)?",
-    flags=re.IGNORECASE | re.DOTALL,
-)
-UID_REGEX = re.compile(r"\bUser ID:\s*(\d{17,21})\b", flags=re.IGNORECASE)
-
-
-def parse_channel_topic(text: str) -> typing.Tuple[typing.Optional[str], int, typing.List[int]]:
+def escape_code_block(text: str) -> str:
     """
-    A helper to parse channel topics and respectivefully returns all the required values
-    at once.
-
-    Parameters
-    ----------
-    text : str
-        The text of channel topic.
-
-    Returns
-    -------
-    Tuple[Optional[str], int, List[int]]
-        A tuple of title, user ID, and other recipients IDs.
+    Returns the text with code block (i.e ```) escaped.
     """
-    title, user_id, other_ids = None, -1, []
-    if isinstance(text, str):
-        match = TOPIC_REGEX.search(text)
-    else:
-        match = None
-
-    if match is not None:
-        groupdict = match.groupdict()
-        title = groupdict["title"]
-
-        # user ID string is the required one in regex, so if match is found
-        # the value of this won't be None
-        user_id = int(groupdict["user_id"])
-
-        oth_ids = groupdict["other_ids"]
-        if oth_ids:
-            other_ids = list(map(int, oth_ids.split(",")))
-
-    return title, user_id, other_ids
-
-
-def match_title(text: str) -> str:
-    """
-    Matches a title in the format of "Title: XXXX"
-
-    Parameters
-    ----------
-    text : str
-        The text of the user ID.
-
-    Returns
-    -------
-    Optional[str]
-        The title if found.
-    """
-    return parse_channel_topic(text)[0]
-
-
-def match_user_id(text: str, any_string: bool = False) -> int:
-    """
-    Matches a user ID in the format of "User ID: 12345".
-
-    Parameters
-    ----------
-    text : str
-        The text of the user ID.
-    any_string: bool
-        Whether to search any string that matches the UID_REGEX, e.g. not from channel topic.
-        Defaults to False.
-
-    Returns
-    -------
-    int
-        The user ID if found. Otherwise, -1.
-    """
-    user_id = -1
-    if any_string:
-        match = UID_REGEX.search(text)
-        if match is not None:
-            user_id = int(match.group(1))
-    else:
-        user_id = parse_channel_topic(text)[1]
-
-    return user_id
-
-
-def match_other_recipients(text: str) -> typing.List[int]:
-    """
-    Matches a title in the format of "Other Recipients: XXXX,XXXX"
-
-    Parameters
-    ----------
-    text : str
-        The text of the user ID.
-
-    Returns
-    -------
-    List[int]
-        The list of other recipients IDs.
-    """
-    return parse_channel_topic(text)[2]
-
-
-def create_not_found_embed(word, possibilities, name, n=2, cutoff=0.6) -> discord.Embed:
-    # Single reference of Color.red()
-    embed = discord.Embed(
-        color=discord.Color.red(), description=f"**{name.capitalize()} `{word}` cannot be found.**"
-    )
-    val = get_close_matches(word, possibilities, n=n, cutoff=cutoff)
-    if val:
-        embed.description += "\nHowever, perhaps you meant...\n" + "\n".join(val)
-    return embed
-
-
-def parse_alias(alias, *, split=True):
-    def encode_alias(m):
-        return "\x1AU" + base64.b64encode(m.group(1).encode()).decode() + "\x1AU"
-
-    def decode_alias(m):
-        return base64.b64decode(m.group(1).encode()).decode()
-
-    alias = re.sub(
-        r"(?:(?<=^)(?:\s*(?<!\\)(?:\")\s*)|(?<=&&)(?:\s*(?<!\\)(?:\")\s*))(.+?)"
-        r"(?:(?:\s*(?<!\\)(?:\")\s*)(?=&&)|(?:\s*(?<!\\)(?:\")\s*)(?=$))",
-        encode_alias,
-        alias,
-    ).strip()
-
-    aliases = []
-    if not alias:
-        return aliases
-
-    if split:
-        iterate = re.split(r"\s*&&\s*", alias)
-    else:
-        iterate = [alias]
-
-    for a in iterate:
-        a = re.sub("\x1AU(.+?)\x1AU", decode_alias, a)
-        if a[0] == a[-1] == '"':
-            a = a[1:-1]
-        aliases.append(a)
-
-    return aliases
-
-
-def normalize_alias(alias, message=""):
-    aliases = parse_alias(alias)
-    contents = parse_alias(message, split=False)
-
-    final_aliases = []
-    for a, content in zip_longest(aliases, contents):
-        if a is None:
-            break
-
-        if content:
-            final_aliases.append(f"{a} {content}")
-        else:
-            final_aliases.append(a)
-
-    return final_aliases
-
-
-def format_description(i, names):
-    return "\n".join(
-        ": ".join((str(a + i * 15), b))
-        for a, b in enumerate(takewhile(lambda x: x is not None, names), start=1)
-    )
-
-
-def trigger_typing(func):
-    @functools.wraps(func)
-    async def wrapper(self, ctx: commands.Context, *args, **kwargs):
-        await ctx.typing()
-        return await func(self, ctx, *args, **kwargs)
-
-    return wrapper
-
-
-def escape_code_block(text):
     return re.sub(r"```", "`\u200b``", text)
 
 
-def tryint(x):
-    try:
-        return int(x)
-    except (ValueError, TypeError):
-        return x
+SMART_QUOTE_REPLACEMENT_DICT = {
+    "\u2018": "'",  # Left single quote
+    "\u2019": "'",  # Right single quote
+    "\u201C": '"',  # Left double quote
+    "\u201D": '"',  # Right double quote
+}
+
+SMART_QUOTE_REPLACE_RE = re.compile("|".join(SMART_QUOTE_REPLACEMENT_DICT.keys()))
 
 
-def get_top_role(member: discord.Member, hoisted=True):
-    roles = sorted(member.roles, key=lambda r: r.position, reverse=True)
-    for role in roles:
-        if not hoisted:
-            return role
-        if role.hoist:
-            return role
-
-
-async def create_thread_channel(bot, recipient, category, overwrites, *, name=None, errors_raised=None):
-    name = name or bot.format_channel_name(recipient)
-    errors_raised = errors_raised or []
-
-    try:
-        channel = await bot.modmail_guild.create_text_channel(
-            name=name,
-            category=category,
-            overwrites=overwrites,
-            reason="Creating a thread channel.",
-        )
-    except discord.HTTPException as e:
-        if (e.text, (category, name)) in errors_raised:
-            # Just raise the error to prevent infinite recursion after retrying
-            raise
-
-        errors_raised.append((e.text, (category, name)))
-
-        if "Maximum number of channels in category reached" in e.text:
-            fallback = None
-            fallback_id = bot.config["fallback_category_id"]
-            if fallback_id:
-                fallback = discord.utils.get(category.guild.categories, id=int(fallback_id))
-                if fallback and len(fallback.channels) >= 49:
-                    fallback = None
-
-            if not fallback:
-                fallback = await category.clone(name="Fallback Modmail")
-                bot.config.set("fallback_category_id", str(fallback.id))
-                await bot.config.update()
-
-            return await create_thread_channel(
-                bot, recipient, fallback, overwrites, errors_raised=errors_raised
-            )
-
-        if "Contains words not allowed" in e.text:
-            # try again but null-discrim (name could be banned)
-            return await create_thread_channel(
-                bot,
-                recipient,
-                category,
-                overwrites,
-                name=bot.format_channel_name(recipient, force_null=True),
-                errors_raised=errors_raised,
-            )
-
-        raise
-
-    return channel
-
-
-def get_joint_id(message: discord.Message) -> typing.Optional[int]:
+def escape(text: str, *, mass_mentions: bool = False, formatting: bool = False) -> str:
     """
-    Get the joint ID from `discord.Embed().author.url`.
+    Get text with all mass mentions or markdown escaped.
+
     Parameters
-    -----------
-    message : discord.Message
-        The discord.Message object.
+    ----------
+    text : str
+        The text to be escaped.
+    mass_mentions : `bool`, optional
+        Set to :code:`True` to escape mass mentions in the text.
+    formatting : `bool`, optional
+        Set to :code:`True` to escape any markdown formatting in the text.
+
     Returns
     -------
-    int
-        The joint ID if found. Otherwise, None.
+    str
+        The escaped text.
+
     """
-    if message.embeds:
-        try:
-            url = getattr(message.embeds[0].author, "url", "")
-            if url:
-                return int(url.split("#")[-1])
-        except ValueError:
-            pass
-    return None
+    if mass_mentions:
+        text = text.replace("@everyone", "@\u200beveryone")
+        text = text.replace("@here", "@\u200bhere")
+    if formatting:
+        text = escape_markdown(text)
+    return text
+
+
+def bold(text: str, escape_formatting: bool = True) -> str:
+    """
+    Get the given text in bold.
+
+    Note: By default, this function will escape ``text`` prior to emboldening.
+
+    Parameters
+    ----------
+    text : str
+        The text to be marked up.
+    escape_formatting : `bool`, optional
+        Set to :code:`False` to not escape markdown formatting in the text.
+
+    Returns
+    -------
+    str
+        The marked up text.
+
+    """
+    text = escape(text, formatting=escape_formatting)
+    return "**{}**".format(text)
+
+
+def code_block(text: str, lang: str = "") -> str:
+    """
+    Get the given text in a code block.
+
+    Parameters
+    ----------
+    text : str
+        The text to be marked up.
+    lang : `str`, optional
+        The syntax highlighting language for the codeblock.
+
+    Returns
+    -------
+    str
+        The marked up text.
+
+    """
+    ret = "```{}\n{}\n```".format(lang, text)
+    return ret
+
+
+def normalize_smartquotes(to_normalize: str) -> str:
+    """
+    Get a string with smart quotes replaced with normal ones
+
+    Parameters
+    ----------
+    to_normalize : str
+        The string to normalize.
+
+    Returns
+    -------
+    str
+        The normalized string.
+    """
+
+    def replacement_for(obj):
+        return SMART_QUOTE_REPLACEMENT_DICT.get(obj.group(0), "")
+
+    return SMART_QUOTE_REPLACE_RE.sub(replacement_for, to_normalize)
+
+
+def text_to_file(
+    text: str,
+    filename: str = "file.txt",
+    *,
+    spoiler: bool = False,
+    encoding: str = "utf-8",
+):
+    """
+    Prepares text to be sent as a file on Discord, without character limit.
+
+    This writes text into a bytes object that can be used for the ``file`` or ``files`` parameters
+    of :meth:`discord.abc.Messageable.send`.
+
+    Parameters
+    ----------
+    text: str
+        The text to put in your file.
+    filename: str
+        The name of the file sent. Defaults to ``file.txt``.
+    spoiler: bool
+        Whether the attachment is a spoiler. Defaults to ``False``.
+    encoding: str
+        Encoding style. Defaults to ``utf-8``.
+
+    Returns
+    -------
+    discord.File
+        The file containing your text.
+
+    """
+    file = BytesIO(text.encode(encoding))
+    return discord.File(file, filename, spoiler=spoiler)
+
+
+# noinspection PyPep8Naming
+class plural:
+    """
+    Formats a string to singular or plural based on the length objects it refers to.
+
+    Examples
+    --------
+    - 'plural(len(data)):member'
+    - 'plural(len(data)):entry|entries'
+    """
+
+    def __init__(self, value):
+        self.value = value
+
+    def __format__(self, format_spec):
+        v = self.value
+        singular, sep, plural = format_spec.partition("|")
+        plural = plural or f"{singular}s"
+        if abs(v) != 1:
+            return f"{v} {plural}"
+        return f"{v} {singular}"

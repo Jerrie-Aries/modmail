@@ -4,25 +4,26 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
-bandit = "~=1.7.0"
 black = "==22.3.0"
-pylint = "~=2.9.3"
-typing-extensions = "==4.2.0"
+pylint = "*"
+bandit = "~=1.7.0"
 
 [packages]
-aiohttp = "==3.8.1"
-colorama = "~=0.4.4"  # Doesn't officially support Python 3.9 yet, v0.4.5 will support 3.9
-"discord.py" = {ref = "e9c7c09ebfe780d8f9de1e9e4d3c2dddf85eccfd", git = "https://github.com/Rapptz/discord.py.git"}
-emoji = "==1.7.0"
+"discord.py" = {ref = "40176bb71b903461499c74e6f55247a3d71ac0cb", git = "https://github.com/Rapptz/discord.py.git"}
+PyYAML = "==5.4.1"
+aiohttp = "~=3.8"
+colorama = "~=0.4.4"
+dadjokes = "*"
+dnspython = "~=2.1.0"
+emoji = "~=1.6.3"
 isodate = "~=0.6.0"
-motor = "==2.5.1"
+motor = "~=2.5.1"
 natural = "~=0.2.0"
 parsedatetime = "~=2.6"
-pymongo = {extras = ["srv"], version = "*"}  # Required by motor
+pipenv = "*"
 python-dateutil = "~=2.8.1"
-python-dotenv = "==0.20.0"
+python-dotenv = "~=0.20.0"
 uvloop = {version = ">=0.15.2", markers = "sys_platform != 'win32'"}
-lottie = {version = "==0.6.11", extras = ["pdf"]}
 
 [scripts]
 bot = "python bot.py"

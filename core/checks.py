@@ -1,6 +1,6 @@
-from discord.ext import commands
-
-from core.models import HostingMethod, PermissionLevel, getLogger
+from core.enums_ext import PermissionLevel
+from core.ext import commands
+from core.logging_ext import getLogger
 
 logger = getLogger(__name__)
 
@@ -8,7 +8,7 @@ logger = getLogger(__name__)
 def has_permissions_predicate(
     permission_level: PermissionLevel = PermissionLevel.REGULAR,
 ):
-    async def predicate(ctx):
+    async def predicate(ctx: commands.Context):
         return await check_permissions(ctx, ctx.command.qualified_name)
 
     predicate.permission_level = permission_level
@@ -21,7 +21,6 @@ def has_permissions(permission_level: PermissionLevel = PermissionLevel.REGULAR)
 
     Parameters
     ----------
-
     permission_level : PermissionLevel
         The lowest level of permission needed to use this command.
         Defaults to REGULAR.
@@ -31,19 +30,21 @@ def has_permissions(permission_level: PermissionLevel = PermissionLevel.REGULAR)
     ::
         @has_permissions(PermissionLevel.OWNER)
         async def setup(ctx):
-            await ctx.send('Success')
+            print("Success")
     """
 
     return commands.check(has_permissions_predicate(permission_level))
 
 
-async def check_permissions(ctx, command_name) -> bool:
+async def check_permissions(ctx: commands.Context, command_name: str) -> bool:
     """Logic for checking permissions for a command for a user"""
-    if await ctx.bot.is_owner(ctx.author) or ctx.author.id == ctx.bot.user.id:
+    bot = ctx.bot
+    author = ctx.author
+    if await bot.is_owner(author):
         # Bot owner(s) (and creator) has absolute power over the bot
         return True
 
-    permission_level = ctx.bot.command_perm(command_name)
+    permission_level = bot.command_perm(command_name)
 
     if permission_level is PermissionLevel.INVALID:
         logger.warning("Invalid permission level for command %s.", command_name)
@@ -51,15 +52,15 @@ async def check_permissions(ctx, command_name) -> bool:
 
     if (
         permission_level is not PermissionLevel.OWNER
-        and ctx.channel.permissions_for(ctx.author).administrator
-        and ctx.guild == ctx.bot.modmail_guild
+        and ctx.channel.permissions_for(author).administrator
+        and ctx.guild == bot.modmail_guild
     ):
         # Administrators have permission to all non-owner commands in the Modmail Guild
         logger.debug("Allowed due to administrator.")
         return True
 
-    command_permissions = ctx.bot.config["command_permissions"]
-    checkables = {*ctx.author.roles, ctx.author}
+    command_permissions = bot.config["command_permissions"]
+    checkables = {*author.roles, author}
 
     if command_name in command_permissions:
         # -1 is for @everyone
@@ -68,7 +69,7 @@ async def check_permissions(ctx, command_name) -> bool:
         ):
             return True
 
-    level_permissions = ctx.bot.config["level_permissions"]
+    level_permissions = bot.config["level_permissions"]
 
     for level in PermissionLevel:
         if level >= permission_level and level.name in level_permissions:
@@ -80,63 +81,66 @@ async def check_permissions(ctx, command_name) -> bool:
     return False
 
 
-def thread_only():
+async def user_has_permissions(
+    ctx: commands.Context, permission_level=PermissionLevel.REGULAR
+) -> bool:
     """
-    A decorator that checks if the command
-    is being ran within a Modmail thread.
+    Logic for checking global permissions for a user.
+
+    This could be useful for checking user's permissions inside a command or on_message
+    and any other events.
+
+    Parameters
+    ----------
+    ctx : commands.Context
+        The context object.
+    permission_level: PermissionLevel
+        Permission Level to check. Default to REGULAR.
+    """
+    bot = ctx.bot
+    author = ctx.author
+    if await bot.is_owner(author):
+        return True
+
+    if (
+        ctx.channel.permissions_for(author).administrator
+        and ctx.guild == bot.modmail_guild
+    ):
+        return True
+
+    checkables = {*author.roles, author}
+
+    level_permissions = bot.config["level_permissions"]
+
+    for level in PermissionLevel:
+        if level >= permission_level and level.name in level_permissions:
+            # -1 is for @everyone
+            if -1 in level_permissions[level.name] or any(
+                str(check.id) in level_permissions[level.name] for check in checkables
+            ):
+                return True
+    return False
+
+
+def is_modmail_thread():
+    """
+    A decorator that checks if the command is being ran within a Modmail thread channel.
     """
 
-    async def predicate(ctx):
+    async def predicate(ctx: commands.Context) -> bool:
         """
         Parameters
         ----------
-        ctx : Context
+        ctx : commands.Context
             The current discord.py `Context`.
 
         Returns
         -------
-        Bool
-            `True` if the current `Context` is within a Modmail thread.
+        bool
+            `True` if the current `Context` is within a Modmail thread channel.
             Otherwise, `False`.
         """
-        return ctx.thread is not None
+        return ctx.modmail_thread is not None
 
-    predicate.fail_msg = "This is not a Modmail thread."
-    return commands.check(predicate)
-
-
-def github_token_required(ignore_if_not_heroku=False):
-    """
-    A decorator that ensures github token
-    is set
-    """
-
-    async def predicate(ctx):
-        if ignore_if_not_heroku and ctx.bot.hosting_method != HostingMethod.HEROKU:
-            return True
-        else:
-            return ctx.bot.config.get("github_token")
-
-    predicate.fail_msg = (
-        "You can only use this command if you have a "
-        "configured `GITHUB_TOKEN`. Get a "
-        "personal access token from developer settings."
-    )
-    return commands.check(predicate)
-
-
-def updates_enabled():
-    """
-    A decorator that ensures
-    updates are enabled
-    """
-
-    async def predicate(ctx):
-        return not ctx.bot.config["disable_updates"]
-
-    predicate.fail_msg = (
-        "Updates are disabled on this bot instance. "
-        "View `?config help disable_updates` for "
-        "more information."
-    )
+    predicate.fail_msg = "This is not a Modmail thread channel."
     return commands.check(predicate)

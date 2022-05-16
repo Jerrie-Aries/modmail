@@ -1,38 +1,33 @@
-[tool.black]
-line-length = "110"
-target-version = ['py39']
-include = '\.pyi?$'
-extend-exclude = '''
-(
-  /(
-      \.eggs
-    | \.git
-    | \.venv
-    | venv
-    | venv2
-    | _build
-    | build
-    | dist
-    | plugins
-    | temp
-  )/
-)
-'''
-
 [tool.poetry]
-name = 'Modmail'
-version = '4.0.0-dev14'
-description = "Modmail is similar to Reddit's Modmail, both in functionality and purpose. It serves as a shared inbox for server staff to communicate with their users in a seamless way."
-license = 'AGPL-3.0-only'
-authors = [
-    'kyb3r <noemail@example.com>',
-    '4jr <noemail@example.com>',
-    'Taki <noemail@example.com>'
-]
-readme = 'README.md'
-repository = 'https://github.com/kyb3r/modmail'
-homepage = 'https://github.com/kyb3r/modmail'
-keywords = ['discord', 'modmail']
+authors = ["Jerrie"]
+description = "Forked Modmail Bot."
+name = "modmail_bot"
+version = "1.0.0"
 
-[tool.pylint.format]
-max-line-length = "110"
+[tool.poetry.dev-dependencies]
+black = "22.3.0"
+
+[tool.poetry.dependencies]
+aiohttp = "~=3.8"
+colorama = "~=0.4.4"
+dadjokes = "*"
+dnspython = "~=2.1.0"
+"discord.py" = { rev = "40176bb71b903461499c74e6f55247a3d71ac0cb", git = "https://github.com/Rapptz/discord.py.git" }
+emoji = "~=1.6.3"
+isodate = "~=0.6.0"
+motor = "~=2.5.1"
+natural = "~=0.2.0"
+parsedatetime = "~=2.6"
+pipenv = "*"
+pymongo = ">=3.11.3"
+python = "^3.8"
+python-dateutil = "~=2.8.1"
+python-dotenv = "0.20.0"
+PyYAML = "==5.4.1"
+
+[tool.poetry.dependencies.uvloop]
+markers = "sys_platform != 'win32'"
+version = ">=0.15.2"
+
+[tool.poetry.extras]
+mongodb = ["motor"]

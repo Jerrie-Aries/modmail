@@ -1,20 +1,37 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import os
 import re
-import typing
 from copy import deepcopy
-
-from dotenv import load_dotenv
-import isodate
+from typing import Any, Dict, ItemsView, Protocol, Optional, TypeVar, TYPE_CHECKING
 
 import discord
+import isodate
 from discord.ext.commands import BadArgument
+from dotenv import load_dotenv
+from yarl import URL
 
 from core._color_data import ALL_COLORS
-from core.models import DMDisabled, InvalidConfigError, Default, getLogger
-from core.time import UserFriendlyTimeSync
+from core.enums_ext import DMDisabled
+from core.errors import InvalidConfigError
+from core.logging_ext import getLogger
+from core.models import Default
+from core.timeutils import UserFriendlyTime
 from core.utils import strtobool
+
+if TYPE_CHECKING:
+    from bot import ModmailBot
+
+    from core.ext.commands import Context
+
+    VT = TypeVar("VT")
+
+    class _ItemsProtocol(Protocol):
+        def items(self) -> ItemsView:
+            ...
+
 
 logger = getLogger(__name__)
 load_dotenv()
@@ -30,7 +47,7 @@ class ConfigManager:
         "fallback_category_id": None,
         "prefix": "?",
         "mention": "@here",
-        "main_color": str(discord.Color.blurple()),
+        "main_color": str(discord.Color.gold()),
         "error_color": str(discord.Color.red()),
         "user_typing": False,
         "mod_typing": False,
@@ -42,33 +59,18 @@ class ConfigManager:
         "plain_reply_without_command": False,
         # logging
         "log_channel_id": None,
-        "mention_channel_id": None,
-        "update_channel_id": None,
-        # updates
-        "update_notifications": True,
         # threads
-        "sent_emoji": "\N{WHITE HEAVY CHECK MARK}",
-        "blocked_emoji": "\N{NO ENTRY SIGN}",
-        "close_emoji": "\N{LOCK}",
-        "use_user_id_channel_name": False,
-        "use_timestamp_channel_name": False,
-        "use_nickname_channel_name": False,
-        "use_random_channel_name": False,
+        "sent_emoji": "✅",
+        "blocked_emoji": "🚫",
+        "close_emoji": "🔒",
         "recipient_thread_close": False,
-        "thread_show_roles": True,
-        "thread_show_account_age": True,
-        "thread_show_join_age": True,
-        "thread_cancelled": "Cancelled",
         "thread_auto_close_silently": False,
         "thread_auto_close": isodate.Duration(),
         "thread_auto_close_response": "This thread has been closed automatically due to inactivity after {timeout}.",
         "thread_creation_response": "The staff team will get back to you as soon as possible.",
         "thread_creation_footer": "Your message has been sent",
-        "thread_contact_silently": False,
+        "thread_contact_anonymously": False,
         "thread_self_closable_creation_footer": "Click the lock to close the thread",
-        "thread_creation_contact_title": "New Thread",
-        "thread_creation_self_contact_response": "You have opened a Modmail thread.",
-        "thread_creation_contact_response": "{creator.name} has opened a Modmail thread.",
         "thread_creation_title": "Thread Created",
         "thread_close_footer": "Replying will create a new thread",
         "thread_close_title": "Thread Closed",
@@ -79,36 +81,14 @@ class ConfigManager:
         "thread_move_notify_mods": False,
         "thread_move_response": "This thread has been moved.",
         "cooldown_thread_title": "Message not sent!",
-        "cooldown_thread_response": "Your cooldown ends {delta}. Try contacting me then.",
+        "cooldown_thread_response": "You must wait for {delta} before you can contact me again.",
         "disabled_new_thread_title": "Not Delivered",
         "disabled_new_thread_response": "We are not accepting new threads.",
         "disabled_new_thread_footer": "Please try again later...",
         "disabled_current_thread_title": "Not Delivered",
         "disabled_current_thread_response": "We are not accepting any messages.",
         "disabled_current_thread_footer": "Please try again later...",
-        "transfer_reactions": True,
         "close_on_leave": False,
-        "close_on_leave_reason": "The recipient has left the server.",
-        "alert_on_mention": False,
-        "silent_alert_on_mention": False,
-        "show_timestamp": True,
-        "anonymous_snippets": False,
-        "plain_snippets": False,
-        "require_close_reason": False,
-        "show_log_url_button": False,
-        # group conversations
-        "private_added_to_group_title": "New Thread (Group)",
-        "private_added_to_group_response": "{moderator.name} has added you to a Modmail thread.",
-        "private_added_to_group_description_anon": "A moderator has added you to a Modmail thread.",
-        "public_added_to_group_title": "New User",
-        "public_added_to_group_response": "{moderator.name} has added {users} to the Modmail thread.",
-        "public_added_to_group_description_anon": "A moderator has added {users} to the Modmail thread.",
-        "private_removed_from_group_title": "Removed From Thread (Group)",
-        "private_removed_from_group_response": "{moderator.name} has removed you from the Modmail thread.",
-        "private_removed_from_group_description_anon": "A moderator has removed you from the Modmail thread.",
-        "public_removed_from_group_title": "User Removed",
-        "public_removed_from_group_response": "{moderator.name} has removed {users} from the Modmail thread.",
-        "public_removed_from_group_description_anon": "A moderator has removed {users} from the Modmail thread.",
         # moderation
         "recipient_color": str(discord.Color.gold()),
         "mod_color": str(discord.Color.green()),
@@ -119,16 +99,11 @@ class ConfigManager:
         "anon_tag": "Response",
         # react to contact
         "react_to_contact_message": None,
-        "react_to_contact_emoji": "\N{WHITE HEAVY CHECK MARK}",
+        "react_to_contact_emoji": "📩",
         # confirm thread creation
         "confirm_thread_creation": False,
         "confirm_thread_creation_title": "Confirm thread creation",
-        "confirm_thread_response": "React to confirm thread creation which will directly contact the moderators",
-        "confirm_thread_creation_accept": "\N{WHITE HEAVY CHECK MARK}",
-        "confirm_thread_creation_deny": "\N{NO ENTRY SIGN}",
-        # regex
-        "use_regex_autotrigger": False,
-        "use_hoisted_top_role": True,
+        "confirm_thread_response": "React to confirm thread creation which will directly contact the moderators.",
     }
 
     private_keys = {
@@ -140,7 +115,6 @@ class ConfigManager:
         "oauth_whitelist": [],
         # moderation
         "blocked": {},
-        "blocked_roles": {},
         "blocked_whitelist": [],
         "command_permissions": {},
         "level_permissions": {},
@@ -152,12 +126,13 @@ class ConfigManager:
         "closures": {},
         # misc
         "plugins": [],
+        "extensions": [],
         "aliases": {},
-        "auto_triggers": {},
     }
 
     protected_keys = {
         # Modmail
+        "registered_guild_ids": None,
         "modmail_guild_id": None,
         "guild_id": None,
         "log_url": "https://example.com/",
@@ -169,15 +144,16 @@ class ConfigManager:
         # bot
         "token": None,
         "enable_plugins": True,
-        "enable_eval": True,
+        "enable_eval": False,
         # github access token for private repositories
         "github_token": None,
-        "disable_autoupdates": False,
-        "disable_updates": False,
+        # Google Client
+        "credentials_url": None,
+        # Clash Client
+        "coc_email": None,
+        "coc_pass": None,
         # Logging
         "log_level": "INFO",
-        # data collection
-        "data_collection": True,
     }
 
     colors = {"mod_color", "recipient_color", "main_color", "error_color"}
@@ -185,42 +161,20 @@ class ConfigManager:
     time_deltas = {"account_age", "guild_age", "thread_auto_close", "thread_cooldown"}
 
     booleans = {
-        "use_user_id_channel_name",
-        "use_timestamp_channel_name",
-        "use_nickname_channel_name",
-        "use_random_channel_name",
         "user_typing",
         "mod_typing",
         "reply_without_command",
         "anon_reply_without_command",
         "plain_reply_without_command",
-        "show_log_url_button",
         "recipient_thread_close",
         "thread_auto_close_silently",
         "thread_move_notify",
         "thread_move_notify_mods",
-        "transfer_reactions",
         "close_on_leave",
-        "alert_on_mention",
-        "silent_alert_on_mention",
-        "show_timestamp",
         "confirm_thread_creation",
-        "use_regex_autotrigger",
         "enable_plugins",
-        "data_collection",
         "enable_eval",
-        "disable_autoupdates",
-        "disable_updates",
-        "update_notifications",
-        "thread_contact_silently",
-        "anonymous_snippets",
-        "plain_snippets",
-        "require_close_reason",
-        "recipient_thread_close",
-        "thread_show_roles",
-        "thread_show_account_age",
-        "thread_show_join_age",
-        "use_hoisted_top_role",
+        "thread_contact_anonymously",
     }
 
     enums = {
@@ -229,47 +183,65 @@ class ConfigManager:
         "activity_type": discord.ActivityType,
     }
 
-    force_str = {"command_permissions", "level_permissions"}
+    urls = {
+        "twitch_url",
+        "anon_avatar_url",
+        "log_url",
+    }
 
     defaults = {**public_keys, **private_keys, **protected_keys}
     all_keys = set(defaults.keys())
 
-    def __init__(self, bot):
-        self.bot = bot
-        self._cache = {}
-        self.ready_event = asyncio.Event()
-        self.config_help = {}
+    def __init__(self, bot: ModmailBot):
+        self.bot: ModmailBot = bot
+        self._cache: Dict[str, Any] = {}
+        self.ready_event: asyncio.Event = asyncio.Event()
+        self.config_help: Dict[str, str] = {}
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self._cache)
 
-    def populate_cache(self) -> dict:
+    def populate_cache(self) -> Dict[str, Any]:
         data = deepcopy(self.defaults)
 
         # populate from env var and .env file
-        data.update({k.lower(): v for k, v in os.environ.items() if k.lower() in self.all_keys})
-        config_json = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.json")
+        data.update(
+            {k.lower(): v for k, v in os.environ.items() if k.lower() in self.all_keys}
+        )
+        config_json = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.json"
+        )
         if os.path.exists(config_json):
             logger.debug("Loading envs from config.json.")
             with open(config_json, "r", encoding="utf-8") as f:
                 # Config json should override env vars
                 try:
-                    data.update({k.lower(): v for k, v in json.load(f).items() if k.lower() in self.all_keys})
+                    data.update(
+                        {
+                            k.lower(): v
+                            for k, v in json.load(f).items()
+                            if k.lower() in self.all_keys
+                        }
+                    )
                 except json.JSONDecodeError:
-                    logger.critical("Failed to load config.json env values.", exc_info=True)
+                    logger.critical(
+                        "Failed to load config.json env values.", exc_info=True
+                    )
         self._cache = data
 
-        config_help_json = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config_help.json")
+        config_help_json = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "config_help.json"
+        )
         with open(config_help_json, "r", encoding="utf-8") as f:
             self.config_help = dict(sorted(json.load(f).items()))
 
         return self._cache
 
-    async def update(self):
+    async def update(self) -> None:
         """Updates the config with data from the cache"""
         await self.bot.api.update_config(self.filter_default(self._cache))
 
-    async def refresh(self) -> dict:
+    async def refresh(self) -> Dict[str, Any]:
         """Refreshes internal cache with data from database"""
         for k, v in (await self.bot.api.get_config()).items():
             k = k.lower()
@@ -283,21 +255,20 @@ class ConfigManager:
     async def wait_until_ready(self) -> None:
         await self.ready_event.wait()
 
-    def __setitem__(self, key: str, item: typing.Any) -> None:
+    def __setitem__(self, key: str, item: Any) -> None:
         key = key.lower()
         logger.info("Setting %s.", key)
         if key not in self.all_keys:
             raise InvalidConfigError(f'Configuration "{key}" is invalid.')
         self._cache[key] = item
 
-    def __getitem__(self, key: str) -> typing.Any:
-        # make use of the custom methods in func:get:
+    def __getitem__(self, key: str) -> Any:
         return self.get(key)
 
     def __delitem__(self, key: str) -> None:
         return self.remove(key)
 
-    def get(self, key: str, convert=True) -> typing.Any:
+    def get(self, key: str, convert=True) -> Any:
         key = key.lower()
         if key not in self.all_keys:
             raise InvalidConfigError(f'Configuration "{key}" is invalid.')
@@ -342,31 +313,52 @@ class ConfigManager:
                 logger.warning("Invalid %s %s.", key, value)
                 value = self.remove(key)
 
-        elif key in self.force_str:
-            # Temporary: as we saved in int previously, leading to int32 overflow,
-            #            this is transitioning IDs to strings
-            new_value = {}
-            changed = False
-            for k, v in value.items():
-                new_v = v
-                if isinstance(v, list):
-                    new_v = []
-                    for n in v:
-                        if n != -1 and not isinstance(n, str):
-                            changed = True
-                            n = str(n)
-                        new_v.append(n)
-                new_value[k] = new_v
+        return value
 
-            if changed:
-                # transition the database as well
-                self.set(key, new_value)
+    async def before_set(self, ctx: Context, key: str, value: VT) -> Optional[str, VT]:
+        """
+        A method for any additional coro task/check that must be done before setting up the value for
+        `config set` command.
+        """
+        if key == "react_to_contact_message":
+            try:
+                message = await ctx.fetch_message(int(value))
+            except ValueError:
+                raise InvalidConfigError(f"Unable to convert `{value}` to int.")
+            except discord.NotFound:
+                raise InvalidConfigError(
+                    f"Message ID `{value}` can't be found in this channel."
+                )
+            react_message_emoji = self.bot.config.get("react_to_contact_emoji")
+            await self.bot.add_reaction(message, react_message_emoji)
 
-            value = new_value
+        if key == "mention":
+            ids = list(v for v in value.split(" "))
+            if len(ids) == 1 and isinstance(ids[0], str) and ids[0] == "disable":
+                value = None
+            else:
+                user_or_role = []
+                for id in ids:
+                    try:
+                        id = int(id)
+                    except ValueError:
+                        raise InvalidConfigError(f'Unable to convert "{id}" to int.')
+                    member = ctx.guild.get_member(id)
+                    if member is not None:
+                        user_or_role.append(member)
+                        continue
+
+                    role = ctx.guild.get_role(id)
+                    if role is not None:
+                        user_or_role.append(role)
+                        continue
+
+                    raise InvalidConfigError(f'Member or Role with ID "{id}" not found')
+                value = " ".join(v.mention for v in user_or_role)
 
         return value
 
-    def set(self, key: str, item: typing.Any, convert=True) -> None:
+    def set(self, key: str, item: Any, convert=True) -> None:
         if not convert:
             return self.__setitem__(key, item)
 
@@ -400,8 +392,7 @@ class ConfigManager:
                 isodate.parse_duration(item)
             except isodate.ISO8601Error:
                 try:
-                    converter = UserFriendlyTimeSync()
-                    time = converter.convert(None, item)
+                    time = UserFriendlyTime().do_conversion(item)
                     if time.arg:
                         raise ValueError
                 except BadArgument as exc:
@@ -412,7 +403,7 @@ class ConfigManager:
                         "Unrecognized time, please use ISO-8601 duration format "
                         'string or a simpler "human readable" time.'
                     )
-                item = isodate.duration_isoformat(time.dt - converter.now)
+                item = isodate.duration_isoformat(time.difference())
             return self.__setitem__(key, item)
 
         if key in self.booleans:
@@ -422,13 +413,20 @@ class ConfigManager:
                 raise InvalidConfigError("Must be a yes/no value.")
 
         elif key in self.enums:
-            if isinstance(item, self.enums[key]):
+            if isinstance(item, (self.enums[key])):
                 # value is an enum type
                 item = item.value
 
+        elif key in self.urls:
+            url = URL(item)
+            if url.scheme not in ("http", "https"):
+                raise InvalidConfigError(
+                    "Invalid url schema. URLs must start with either `http` or `https`."
+                )
+
         return self.__setitem__(key, item)
 
-    def remove(self, key: str) -> typing.Any:
+    def remove(self, key: str) -> Any:
         key = key.lower()
         logger.info("Removing %s.", key)
         if key not in self.all_keys:
@@ -438,11 +436,11 @@ class ConfigManager:
         self._cache[key] = deepcopy(self.defaults[key])
         return self._cache[key]
 
-    def items(self) -> typing.Iterable:
+    def items(self) -> ItemsView[str, Any]:
         return self._cache.items()
 
     @classmethod
-    def filter_valid(cls, data: typing.Dict[str, typing.Any]) -> typing.Dict[str, typing.Any]:
+    def filter_valid(cls, data: _ItemsProtocol) -> Dict[str, Any]:
         return {
             k.lower(): v
             for k, v in data.items()
@@ -450,7 +448,7 @@ class ConfigManager:
         }
 
     @classmethod
-    def filter_default(cls, data: typing.Dict[str, typing.Any]) -> typing.Dict[str, typing.Any]:
+    def filter_default(cls, data: _ItemsProtocol) -> Dict[str, Any]:
         # TODO: use .get to prevent errors
         filtered = {}
         for k, v in data.items():

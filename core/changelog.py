@@ -1,12 +1,19 @@
+from __future__ import annotations
+
 import asyncio
 import re
+from pathlib import Path
 from subprocess import PIPE
-from typing import List
+from typing import Dict, List, TYPE_CHECKING
 
 from discord import Embed
 
-from core.models import getLogger
+from core.logging_ext import getLogger
 from core.utils import truncate
+
+if TYPE_CHECKING:
+    from bot import ModmailBot
+
 
 logger = getLogger(__name__)
 
@@ -17,7 +24,7 @@ class Version:
 
     Parameters
     ----------
-    bot : Bot
+    bot : ModmailBot
         The Modmail bot.
     version : str
         The version string (ie. "v2.12.0").
@@ -26,7 +33,7 @@ class Version:
 
     Attributes
     ----------
-    bot : Bot
+    bot : ModmailBot
         The Modmail bot.
     version : str
         The version string (ie. "v2.12.0").
@@ -39,22 +46,28 @@ class Version:
 
     Class Attributes
     ----------------
-    ACTION_REGEX : str
+    ACTION_REGEX : re.Pattern[str]
         The regex used to parse the actions.
-    DESCRIPTION_REGEX: str
+    DESCRIPTION_REGEX: re.Pattern[str]
         The regex used to parse the description.
     """
 
-    ACTION_REGEX = r"###\s*(.+?)\s*\n(.*?)(?=###\s*.+?|$)"
-    DESCRIPTION_REGEX = r"^(.*?)(?=###\s*.+?|$)"
+    ACTION_REGEX: re.Pattern[str] = re.compile(
+        r"###\s*(.+?)\s*\n(.*?)(?=###\s*.+?|$)", flags=re.DOTALL
+    )
+    DESCRIPTION_REGEX: re.Pattern[str] = re.compile(
+        r"^(.*?)(?=###\s*.+?|$)", flags=re.DOTALL
+    )
 
-    def __init__(self, bot, branch: str, version: str, lines: str):
-        self.bot = bot
-        self.version = version.lstrip("vV")
-        self.lines = lines.strip()
-        self.fields = {}
-        self.changelog_url = f"https://github.com/kyb3r/modmail/blob/{branch}/CHANGELOG.md"
-        self.description = ""
+    def __init__(self, bot: ModmailBot, branch: str, version: str, lines: str):
+        self.bot: ModmailBot = bot
+        self.version: str = version.lstrip("vV")
+        self.lines: str = lines.strip()
+        self.fields: Dict[str, str] = {}
+        self.changelog_url: str = (
+            f"https://github.com/kyb3r/modmail/blob/{branch}/CHANGELOG.md"
+        )
+        self.description: str = ""
         self.parse()
 
     def __repr__(self) -> str:
@@ -64,10 +77,12 @@ class Version:
         """
         Parse the lines and split them into `description` and `fields`.
         """
-        self.description = re.match(self.DESCRIPTION_REGEX, self.lines, re.DOTALL)
-        self.description = self.description.group(1).strip() if self.description is not None else ""
+        self.description = self.DESCRIPTION_REGEX.match(self.lines)
+        self.description = (
+            self.description.group(1).strip() if self.description is not None else ""
+        )
 
-        matches = re.finditer(self.ACTION_REGEX, self.lines, re.DOTALL)
+        matches = self.ACTION_REGEX.finditer(self.lines)
         for m in matches:
             try:
                 self.fields[m.group(1).strip()] = m.group(2).strip()
@@ -95,9 +110,8 @@ class Version:
         )
 
         for name, value in self.fields.items():
-            embed.add_field(name=name, value=truncate(value, 1024), inline=False)
+            embed.add_field(name=name, value=truncate(value, 1024))
         embed.set_footer(text=f"Current version: v{self.bot.version}")
-
         embed.set_thumbnail(url=self.bot.user.display_avatar.url)
         return embed
 
@@ -108,14 +122,14 @@ class Changelog:
 
     Parameters
     ----------
-    bot : Bot
+    bot : ModmailBot
         The Modmail bot.
     text : str
         The complete changelog text.
 
     Attributes
     ----------
-    bot : Bot
+    bot : ModmailBot
         The Modmail bot.
     text : str
         The complete changelog text.
@@ -124,20 +138,21 @@ class Changelog:
 
     Class Attributes
     ----------------
-    VERSION_REGEX : re.Pattern
+    VERSION_REGEX : re.Pattern[str]
         The regex used to parse the versions.
     """
 
-    VERSION_REGEX = re.compile(
+    VERSION_REGEX: re.Pattern[str] = re.compile(
         r"#\s*([vV]\d+\.\d+(?:\.\d+)?(?:-\w+?)?)\s+(.*?)(?=#\s*[vV]\d+\.\d+(?:\.\d+)(?:-\w+?)?|$)",
         flags=re.DOTALL,
     )
 
-    def __init__(self, bot, branch: str, text: str):
-        self.bot = bot
-        self.text = text
-        logger.debug("Fetching changelog from GitHub.")
-        self.versions = [Version(bot, branch, *m) for m in self.VERSION_REGEX.findall(text)]
+    def __init__(self, bot: ModmailBot, branch: str, text: str):
+        self.bot: ModmailBot = bot
+        self.text: str = text
+        self.versions: List[Version] = [
+            Version(bot, branch, *m) for m in self.VERSION_REGEX.findall(text)
+        ]
 
     @property
     def latest_version(self) -> Version:
@@ -154,15 +169,15 @@ class Changelog:
         return [v.embed for v in self.versions]
 
     @classmethod
-    async def from_url(cls, bot, url: str = "") -> "Changelog":
+    async def from_url(cls, bot: ModmailBot, url: str = "") -> "Changelog":
         """
         Create a `Changelog` from a URL.
 
         Parameters
         ----------
-        bot : Bot
+        bot : ModmailBot
             The Modmail bot.
-        url : str, optional
+        url : str
             The URL to the changelog.
 
         Returns
@@ -186,7 +201,35 @@ class Changelog:
         if branch not in ("master", "development"):
             branch = "master"
 
-        url = url or f"https://raw.githubusercontent.com/kyb3r/modmail/{branch}/CHANGELOG.md"
+        url = (
+            url
+            or f"https://raw.githubusercontent.com/kyb3r/modmail/{branch}/CHANGELOG.md"
+        )
+        logger.debug("Fetching changelog from GitHub.")
 
         async with await bot.session.get(url) as resp:
             return cls(bot, branch, await resp.text())
+
+    @classmethod
+    async def from_file(cls, bot: ModmailBot, file_directory: str = "") -> "Changelog":
+        """
+        Create a `Changelog` from a file.
+
+        Parameters
+        ----------
+        bot : ModmailBot
+            The Modmail bot.
+        file_directory : str
+            The directory to the changelog `file`.
+
+        Returns
+        -------
+        Changelog
+            The newly created `Changelog` parsed from the `file`.
+        """
+        changelog_md = Path(__file__).absolute().parent.parent / "CHANGELOG.md"
+        branch = "master" if not bot.version.is_prerelease else "development"
+        file_directory = file_directory or changelog_md
+
+        with open(file_directory) as resp:
+            return cls(bot, branch, resp.read())
