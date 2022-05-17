@@ -621,12 +621,10 @@ class Developer(commands.Cog):
 
     @app_command.command(name="sync")
     @checks.has_permissions(PermissionLevel.OWNER)
-    async def ac_sync(
-        self, ctx: commands.Context, guild: Optional[str] = None
-    ):
+    async def ac_sync(self, ctx: commands.Context, guild: Optional[str] = None):
         """
         Sync application commands for specified guild.
-        
+
         For `guild` parameter, you may pass a guild ID, name or "global".
         If not passed, fallback to guild where the command is executed.
         """
