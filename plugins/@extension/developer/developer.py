@@ -622,13 +622,25 @@ class Developer(commands.Cog):
     @app_command.command(name="sync")
     @checks.has_permissions(PermissionLevel.OWNER)
     async def ac_sync(
-        self, ctx: commands.Context, guild: Optional[discord.Guild] = None
+        self, ctx: commands.Context, guild: Optional[str] = None
     ):
         """
         Sync application commands for specified guild.
+        
+        For `guild` parameter, you may pass a guild ID, name or "global".
+        If not passed, fallback to guild where the command is executed.
         """
         if guild is None:
             guild = ctx.guild
+        elif guild.lower() == "global":
+            guild = None
+        else:
+            conv = commands.GuildConverter
+            argument = guild
+            try:
+                guild = await conv.convert(ctx, argument)
+            except commands.GuildNotFound:
+                raise commands.BadArgument(f'Guild "{argument}" not found.')
 
         guild_cmds = self.bot.tree.get_commands(guild=guild)
         for cmd in self.bot.tree.get_commands():
