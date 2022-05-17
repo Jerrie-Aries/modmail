@@ -633,7 +633,7 @@ class Developer(commands.Cog):
         elif guild.lower() == "global":
             guild = None
         else:
-            conv = commands.GuildConverter
+            conv = commands.GuildConverter()
             argument = guild
             try:
                 guild = await conv.convert(ctx, argument)
