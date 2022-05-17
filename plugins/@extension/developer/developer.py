@@ -11,6 +11,7 @@ from core.enums_ext import PermissionLevel
 from core.ext import commands
 from core.timeutils import datetime_formatter
 from core.utils import code_block, escape_code_block, plural, trigger_typing
+from core.views.confirm import ConfirmView
 from core.views.paginator import EmbedPaginatorSession
 
 if TYPE_CHECKING:
@@ -640,12 +641,29 @@ class Developer(commands.Cog):
             except commands.GuildNotFound:
                 raise commands.BadArgument(f'Guild "{argument}" not found.')
 
+        view = ConfirmView(user=ctx.author, timeout=20.0)
+        view.message = await ctx.send(
+            embed=discord.Embed(
+                title="Sync application commands",
+                description=f'Are you sure you want to sync all application commands for {str(guild) if guild else "global"}?',
+                color=self.bot.main_color,
+            ),
+            view=view,
+        )
+
+        await view.wait()
+
+        if not view.value:
+            return
+
         guild_cmds = self.bot.tree.get_commands(guild=guild)
         for cmd in self.bot.tree.get_commands():
             if cmd not in guild_cmds:
                 self.bot.tree.add_command(cmd, guild=guild)
         await self.bot.tree.sync(guild=guild)
-        await ctx.send("Done.")
+        await ctx.send(
+            f'Successfully synched application commands for {str(guild) if guild else "global"}.'
+        )
 
 
 async def setup(bot):
