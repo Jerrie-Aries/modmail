@@ -48,7 +48,7 @@ class Stats(commands.Cog):
 
     # Bot
 
-    @commands.command()
+    @commands.hybrid_command()
     @checks.has_permissions(PermissionLevel.REGULAR)
     async def botinfo(self, ctx: commands.Context):
         """
@@ -145,7 +145,7 @@ class Stats(commands.Cog):
 
     # Server
 
-    @commands.command(aliases=["guildinfo"])
+    @commands.hybrid_command(aliases=["guildinfo"])
     @checks.has_permissions(PermissionLevel.REGULAR)
     async def serverinfo(self, ctx: commands.Context):
         """
