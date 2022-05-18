@@ -612,19 +612,52 @@ class Developer(commands.Cog):
 
     @app_command.command(name="clear")
     @checks.has_permissions(PermissionLevel.OWNER)
-    async def ac_clear(
-        self, ctx: commands.Context, name: str, guild: Optional[discord.Guild] = None
-    ):
+    async def ac_clear(self, ctx: commands.Context, guild: Optional[str] = None):
         """
-        Clear all commands from application commands.
+        Clear all commands from application commands for specified guild or global.
+
+        For `guild` parameter, you may pass a guild ID, name or "global".
+        If not passed, fallback to guild where the command is executed.
         """
-        await ctx.send("Not implemented.")
+        if guild is None:
+            guild = ctx.guild
+        elif guild.lower() == "global":
+            guild = None
+        else:
+            conv = commands.GuildConverter()
+            argument = guild
+            try:
+                guild = await conv.convert(ctx, argument)
+            except commands.GuildNotFound:
+                raise commands.BadArgument(f'Guild "{argument}" not found.')
+
+        view = ConfirmView(user=ctx.author, timeout=20.0)
+        view.message = await ctx.send(
+            embed=discord.Embed(
+                title="Clear application commands",
+                description=f'Are you sure you want to clear all application commands from {str(guild) if guild else "global"}?',
+                color=self.bot.main_color,
+            ),
+            view=view,
+        )
+
+        await view.wait()
+
+        if not view.value:
+            return
+
+        self.bot.tree.clear_commands(guild=guild)
+        await self.bot.tree.sync(guild=guild)
+
+        await ctx.send(
+            f'Successfully cleared all application commands from {str(guild) if guild else "global"}.'
+        )
 
     @app_command.command(name="sync")
     @checks.has_permissions(PermissionLevel.OWNER)
     async def ac_sync(self, ctx: commands.Context, guild: Optional[str] = None):
         """
-        Sync application commands for specified guild.
+        Sync application commands for specified guild or global.
 
         For `guild` parameter, you may pass a guild ID, name or "global".
         If not passed, fallback to guild where the command is executed.
