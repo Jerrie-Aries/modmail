@@ -68,12 +68,12 @@ class ConfirmView(View):
         # with bot parameter, we can insert custom emojis from config here
         self.button_map: List[ConfirmationButtonItem] = [
             {
-                "label": "Yes",
+                "label": "✔",
                 "style": ButtonStyle.green,
                 "callback": self._action_confirm,
             },
             {
-                "label": "No",
+                "label": "✘",
                 "style": ButtonStyle.red,
                 "callback": self._action_cancel,
             },
