@@ -196,7 +196,9 @@ class Changelog:
         res = await proc.stdout.read()
         branch = res.decode("utf-8").rstrip()
         if not branch or err:
-            branch = "main-master" if not bot.version.is_prerelease else "main-development"
+            branch = (
+                "main-master" if not bot.version.is_prerelease else "main-development"
+            )
 
         if branch not in ("main-master", "main-development"):
             branch = "main-master"

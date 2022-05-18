@@ -330,15 +330,17 @@ class ModmailBot(commands.Bot):
 
     def _refresh_tree(self) -> None:
         """
-        Internal method to refresh the global application commands
-        stored in `Bot.tree` and add them into every guild.
-        This will not register the commands with discord. To do that,
+        Internal method to refresh the global application commands which were automatically
+        stored in `Bot.tree` on startup, and copy them into every guild.
+
+        This will not register the commands in the client. To do that,
         the `Bot.tree.sync()` needs to be called separately.
         """
-        all_cmds = self.tree.get_commands()
         for guild in self.guilds:
-            for cmd in all_cmds:
-                self.tree.add_command(cmd, guild=guild)
+            self.tree.copy_global_to(guild=guild)
+
+        # clear global commands from `Bot.tree`
+        self.tree.clear_commands(guild=None)
 
     async def get_prefix(self, message=None) -> List[str]:
         """
