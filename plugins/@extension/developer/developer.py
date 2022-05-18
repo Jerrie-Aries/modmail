@@ -11,6 +11,7 @@ from core.enums_ext import PermissionLevel
 from core.ext import commands
 from core.timeutils import datetime_formatter
 from core.utils import code_block, escape_code_block, plural, trigger_typing
+from core.views.confirm import ConfirmView
 from core.views.paginator import EmbedPaginatorSession
 
 if TYPE_CHECKING:
@@ -611,31 +612,91 @@ class Developer(commands.Cog):
 
     @app_command.command(name="clear")
     @checks.has_permissions(PermissionLevel.OWNER)
-    async def ac_clear(
-        self, ctx: commands.Context, name: str, guild: Optional[discord.Guild] = None
-    ):
+    async def ac_clear(self, ctx: commands.Context, guild: Optional[str] = None):
         """
-        Clear all commands from application commands.
-        """
-        await ctx.send("Not implemented.")
+        Clear all commands from application commands for specified guild or global.
 
-    @app_command.command(name="sync")
-    @checks.has_permissions(PermissionLevel.OWNER)
-    async def ac_sync(
-        self, ctx: commands.Context, guild: Optional[discord.Guild] = None
-    ):
-        """
-        Sync application commands for specified guild.
+        For `guild` parameter, you may pass a guild ID, name or "global".
+        If not passed, fallback to guild where the command is executed.
         """
         if guild is None:
             guild = ctx.guild
+        elif guild.lower() == "global":
+            guild = None
+        else:
+            conv = commands.GuildConverter()
+            argument = guild
+            try:
+                guild = await conv.convert(ctx, argument)
+            except commands.GuildNotFound:
+                raise commands.BadArgument(f'Guild "{argument}" not found.')
+
+        view = ConfirmView(user=ctx.author, timeout=20.0)
+        view.message = await ctx.send(
+            embed=discord.Embed(
+                title="Clear application commands",
+                description=f'Are you sure you want to clear all application commands from {str(guild) if guild else "global"}?',
+                color=self.bot.main_color,
+            ),
+            view=view,
+        )
+
+        await view.wait()
+
+        if not view.value:
+            return
+
+        self.bot.tree.clear_commands(guild=guild)
+        await self.bot.tree.sync(guild=guild)
+
+        await ctx.send(
+            f'Successfully cleared all application commands from {str(guild) if guild else "global"}.'
+        )
+
+    @app_command.command(name="sync")
+    @checks.has_permissions(PermissionLevel.OWNER)
+    async def ac_sync(self, ctx: commands.Context, guild: Optional[str] = None):
+        """
+        Sync application commands for specified guild or global.
+
+        For `guild` parameter, you may pass a guild ID, name or "global".
+        If not passed, fallback to guild where the command is executed.
+        """
+        if guild is None:
+            guild = ctx.guild
+        elif guild.lower() == "global":
+            guild = None
+        else:
+            conv = commands.GuildConverter()
+            argument = guild
+            try:
+                guild = await conv.convert(ctx, argument)
+            except commands.GuildNotFound:
+                raise commands.BadArgument(f'Guild "{argument}" not found.')
+
+        view = ConfirmView(user=ctx.author, timeout=20.0)
+        view.message = await ctx.send(
+            embed=discord.Embed(
+                title="Sync application commands",
+                description=f'Are you sure you want to sync all application commands for {str(guild) if guild else "global"}?',
+                color=self.bot.main_color,
+            ),
+            view=view,
+        )
+
+        await view.wait()
+
+        if not view.value:
+            return
 
         guild_cmds = self.bot.tree.get_commands(guild=guild)
         for cmd in self.bot.tree.get_commands():
             if cmd not in guild_cmds:
                 self.bot.tree.add_command(cmd, guild=guild)
         await self.bot.tree.sync(guild=guild)
-        await ctx.send("Done.")
+        await ctx.send(
+            f'Successfully synced application commands for {str(guild) if guild else "global"}.'
+        )
 
 
 async def setup(bot):
