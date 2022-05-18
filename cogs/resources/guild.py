@@ -11,31 +11,6 @@ if TYPE_CHECKING:
 
     from core.ext.commands import Context
 
-vc_regions = {
-    "vip-us-east": "__VIP__ US East " + "\U0001F1FA\U0001F1F8",
-    "vip-us-west": "__VIP__ US West " + "\U0001F1FA\U0001F1F8",
-    "vip-amsterdam": "__VIP__ Amsterdam " + "\U0001F1F3\U0001F1F1",
-    "eu-west": "EU West " + "\U0001F1EA\U0001F1FA",
-    "eu-central": "EU Central " + "\U0001F1EA\U0001F1FA",
-    "europe": "Europe " + "\U0001F1EA\U0001F1FA",
-    "london": "London " + "\U0001F1EC\U0001F1E7",
-    "frankfurt": "Frankfurt " + "\U0001F1E9\U0001F1EA",
-    "amsterdam": "Amsterdam " + "\U0001F1F3\U0001F1F1",
-    "us-west": "US West " + "\U0001F1FA\U0001F1F8",
-    "us-east": "US East " + "\U0001F1FA\U0001F1F8",
-    "us-south": "US South " + "\U0001F1FA\U0001F1F8",
-    "us-central": "US Central " + "\U0001F1FA\U0001F1F8",
-    "singapore": "Singapore " + "\U0001F1F8\U0001F1EC",
-    "sydney": "Sydney " + "\U0001F1E6\U0001F1FA",
-    "brazil": "Brazil " + "\U0001F1E7\U0001F1F7",
-    "hongkong": "Hong Kong " + "\U0001F1ED\U0001F1F0",
-    "russia": "Russia " + "\U0001F1F7\U0001F1FA",
-    "japan": "Japan " + "\U0001F1EF\U0001F1F5",
-    "southafrica": "South Africa " + "\U0001F1FF\U0001F1E6",
-    "india": "India " + "\U0001F1EE\U0001F1F3",
-    "dubai": "Dubai " + "\U0001F1E6\U0001F1EA",
-    "south-korea": "South Korea " + "\U0001f1f0\U0001f1f7",
-}
 verif = {
     "none": "0 - None",
     "low": "1 - Low",
@@ -112,10 +87,6 @@ class GuildResource:
             ),
         )
         embed.add_field(name="__Roles:__", value=f"{len(guild.roles)}")
-        embed.add_field(
-            name="__Server Region:__",
-            value=f"{vc_regions.get(str(guild.region)) or str(guild.region).upper()}",
-        )
         embed.add_field(
             name="__Verification Level:__",
             value=f"{(verif[str(guild.verification_level)])}",
