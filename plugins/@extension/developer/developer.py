@@ -695,7 +695,7 @@ class Developer(commands.Cog):
                 self.bot.tree.add_command(cmd, guild=guild)
         await self.bot.tree.sync(guild=guild)
         await ctx.send(
-            f'Successfully synched application commands for {str(guild) if guild else "global"}.'
+            f'Successfully synced application commands for {str(guild) if guild else "global"}.'
         )
 
 
