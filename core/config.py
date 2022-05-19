@@ -149,9 +149,6 @@ class ConfigManager:
         "github_token": None,
         # Google Client
         "credentials_url": None,
-        # Clash Client
-        "coc_email": None,
-        "coc_pass": None,
         # Logging
         "log_level": "INFO",
     }
