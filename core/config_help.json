@@ -588,6 +588,26 @@
       "See also: `react_to_contact_message`."
     ]
   },
+  "confirm_button_accept": {
+    "default": "✔",
+    "description": "Emoji or label for accept confirmation button.",
+    "examples":[
+      "`{prefix}config set confirm_button_accept \u2611`"
+    ],
+    "notes": [
+      "See also: `confirm_button_deny`"
+    ]
+},
+  "confirm_button_deny": {
+    "default": "✘",
+    "description": "Emoji or label for deny confirmation button.",
+    "examples":[
+      "`{prefix}config set confirm_button_deny \u26D4`"
+    ],
+    "notes": [
+      "See also: `confirm_button_accept`"
+    ]
+  },
   "close_on_leave": {
     "default": "No",
     "description": "Closes a modmail thread upon user leave automatically.",
