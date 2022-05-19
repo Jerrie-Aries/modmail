@@ -104,6 +104,9 @@ class ConfigManager:
         "confirm_thread_creation": False,
         "confirm_thread_creation_title": "Confirm thread creation",
         "confirm_thread_response": "React to confirm thread creation which will directly contact the moderators.",
+        # buttons
+        "confirm_button_accept": "✔",
+        "confirm_button_deny": "✘",
     }
 
     private_keys = {
