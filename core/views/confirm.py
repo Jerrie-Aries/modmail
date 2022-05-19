@@ -65,7 +65,6 @@ class ConfirmView(View):
         self.user: Union[discord.Member, discord.User] = user
         super().__init__(timeout=timeout)
 
-        # with bot parameter, we can insert custom emojis from config here
         self.button_map: List[ConfirmationButtonItem] = [
             {
                 "label": "✔",
@@ -110,24 +109,6 @@ class ConfirmView(View):
             raise TypeError(
                 f"Invalid type. Expected `Message`, got `{type(item).__name__}` instead."
             )
-
-        # still need to do this check to make sure we set the correct Message
-        # in this case we just match the `custom_id` of one of the components
-        matched = False
-        for comp in item.components:
-            comp_children = getattr(comp, "children", [])
-            for child in comp_children:
-                child_id = getattr(child, "custom_id", None)
-                match = discord.utils.find(
-                    lambda x: child_id and x.custom_id == child_id, self.children
-                )
-                if match is not None:
-                    matched = True
-                    break
-            if matched:
-                break
-        else:
-            raise ValueError("Invalid item. No matched IDs from child components.")
 
         self._message = item
 
