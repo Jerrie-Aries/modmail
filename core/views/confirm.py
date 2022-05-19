@@ -48,7 +48,7 @@ class ConfirmView(View):
     """
     Confirmation views. This can be used to add buttons on confirmation messages.
 
-    Users can only select one of the `Yes` and `No` buttons on this view.
+    Users can only select one of the accept and deny buttons on this view.
     After one of them is selected, the view will stop which means the bot will no longer listen to
     interactions on this view, and the buttons will be disabled.
 
@@ -108,20 +108,18 @@ class ConfirmView(View):
     ) -> Tuple[
         Optional[str], Optional[Union[discord.PartialEmoji, discord.Emoji, str]]
     ]:
-        name = re.sub("\ufe0f", "", name)  # remove trailing whitespace
+        name = re.sub("\ufe0f", "", name)
         emoji = discord.PartialEmoji.from_str(name)
-        label = None
         if emoji.is_unicode_emoji():
             if emoji.name not in UNICODE_EMOJI_ENGLISH:
-                label = emoji.name
+                # could be a  normal text
+                return name, None
         else:
             # custom emoji
             emoji = self.bot.get_emoji(emoji.id)
             if emoji is None:
                 raise ValueError(f'Emoji "{name}" not found.')
 
-        if label:
-            return label, None
         return None, emoji
 
     @property

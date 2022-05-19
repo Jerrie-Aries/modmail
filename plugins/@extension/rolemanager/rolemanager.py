@@ -925,7 +925,7 @@ class RoleManager(commands.Cog, name="Role Manager"):
         """
         Clear the autorole data.
         """
-        view = ConfirmView(ctx.author)
+        view = ConfirmView(bot=self.bot, user=ctx.author)
         view.message = await ctx.send(
             embed=self.base_embed(
                 description="Are you sure you want to clear all autorole data?"
@@ -1231,7 +1231,7 @@ class RoleManager(commands.Cog, name="Role Manager"):
             message_config["emoji_role_groups"].get(emoji_str)
         )
         if old_role:
-            view = ConfirmView(ctx.author)
+            view = ConfirmView(bot=self.bot, user=ctx.author)
             view.message = await ctx.send(
                 embed=self.base_embed(
                     f"Emoji {emoji} is already binded to role {old_role.mention} on that message.\n"
@@ -1342,7 +1342,7 @@ class RoleManager(commands.Cog, name="Role Manager"):
                 "There are no reaction roles set up for that message."
             )
 
-        view = ConfirmView(ctx.author)
+        view = ConfirmView(bot=self.bot, user=ctx.author)
         view.message = await ctx.send(
             embed=self.base_embed(
                 "Are you sure you want to remove all reaction roles for that message?"
@@ -1465,7 +1465,7 @@ class RoleManager(commands.Cog, name="Role Manager"):
         """
         Clear all Reaction Role data.
         """
-        view = ConfirmView(ctx.author)
+        view = ConfirmView(bot=self.bot, user=ctx.author)
         view.message = await ctx.send(
             embed=self.base_embed(
                 "Are you sure you want to clear all reaction role data?"

@@ -1565,7 +1565,7 @@ class Moderation(commands.Cog):
         else:
             reason = await ActionReason().convert(ctx, args.reason)
 
-        view = ConfirmView(ctx.author)
+        view = ConfirmView(bot=self.bot, user=ctx.author)
         view.message = await ctx.send(
             f"This will ban **{plural(len(members)):member}**. Are you sure?", view=view
         )
@@ -1665,7 +1665,7 @@ class Moderation(commands.Cog):
         if total_members == 0:
             raise commands.BadArgument("Missing members to ban.")
 
-        view = ConfirmView(ctx.author)
+        view = ConfirmView(bot=self.bot, user=ctx.author)
         view.message = await ctx.send(
             embed=discord.Embed(
                 color=self.bot.main_color,

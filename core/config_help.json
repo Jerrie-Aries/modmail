@@ -589,20 +589,22 @@
     ]
   },
   "confirm_button_accept": {
-    "default": "✔",
+    "default": "Yes",
     "description": "Emoji or label for accept confirmation button.",
     "examples":[
-      "`{prefix}config set confirm_button_accept \u2611`"
+      "`{prefix}config set confirm_button_accept \u2611`",
+      "`{prefix}config set confirm_button_accept Accept`"
     ],
     "notes": [
       "See also: `confirm_button_deny`"
     ]
 },
   "confirm_button_deny": {
-    "default": "✘",
+    "default": "No",
     "description": "Emoji or label for deny confirmation button.",
     "examples":[
-      "`{prefix}config set confirm_button_deny \u26D4`"
+      "`{prefix}config set confirm_button_deny \u26D4`",
+      "`{prefix}config set confirm_button_deny Deny`"
     ],
     "notes": [
       "See also: `confirm_button_accept`"

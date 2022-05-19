@@ -631,7 +631,7 @@ class Developer(commands.Cog):
             except commands.GuildNotFound:
                 raise commands.BadArgument(f'Guild "{argument}" not found.')
 
-        view = ConfirmView(user=ctx.author, timeout=20.0)
+        view = ConfirmView(bot=self.bot, user=ctx.author, timeout=20.0)
         view.message = await ctx.send(
             embed=discord.Embed(
                 title="Clear application commands",
@@ -674,7 +674,7 @@ class Developer(commands.Cog):
             except commands.GuildNotFound:
                 raise commands.BadArgument(f'Guild "{argument}" not found.')
 
-        view = ConfirmView(user=ctx.author, timeout=20.0)
+        view = ConfirmView(bot=self.bot, user=ctx.author, timeout=20.0)
         view.message = await ctx.send(
             embed=discord.Embed(
                 title="Sync application commands",

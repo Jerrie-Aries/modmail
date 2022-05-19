@@ -1519,7 +1519,7 @@ class ModmailThreadManager:
             else:
                 destination = message.channel
 
-            view = ConfirmView(user=recipient, timeout=20.0)
+            view = ConfirmView(bot=self.bot, user=recipient, timeout=20.0)
             view.message = await destination.send(
                 embed=Embed(
                     title=self.bot.config["confirm_thread_creation_title"],
