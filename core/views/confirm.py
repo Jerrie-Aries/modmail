@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-from typing import List, Optional, Union, TYPE_CHECKING
+import re
+
+from typing import List, Optional, Tuple, Union, TYPE_CHECKING
 
 import discord
 from discord import ButtonStyle, Interaction
 from discord.ui import Button, View
+from emoji import UNICODE_EMOJI_ENGLISH
 
 if TYPE_CHECKING:
+    from bot import ModmailBot
+
     # these are for the sake of type hints only,
     # so no need to execute these in runtime
 
@@ -29,7 +34,7 @@ class ConfirmationButton(Button["ConfirmView"]):
     """
 
     def __init__(self, item: ConfirmationButtonItem):
-        super().__init__(label=item["label"], emoji=None, style=item["style"])
+        super().__init__(label=item["label"], emoji=item["emoji"], style=item["style"])
 
         self._button_callback: ConfirmationButtonCallback = item["callback"]
 
@@ -49,6 +54,8 @@ class ConfirmView(View):
 
     Parameters
     -----------
+    bot : ModmailBot
+        The Modmail bot.
     user : Union[discord.Member, discord.User]
         The author that triggered this confirmation view.
     timeout : float
@@ -59,20 +66,30 @@ class ConfirmView(View):
 
     def __init__(
         self,
+        bot: ModmailBot,
         user: Union[discord.Member, discord.User],
         timeout: float = 20.0,
     ):
+        self.bot: ModmailBot = bot
         self.user: Union[discord.Member, discord.User] = user
         super().__init__(timeout=timeout)
 
+        accept_label, accept_emoji = self._resolve_label_and_emoji(
+            self.bot.config["confirm_button_accept"]
+        )
+        deny_label, deny_emoji = self._resolve_label_and_emoji(
+            self.bot.config["confirm_button_deny"]
+        )
         self.button_map: List[ConfirmationButtonItem] = [
             {
-                "label": "✔",
+                "label": accept_label,
+                "emoji": accept_emoji,
                 "style": ButtonStyle.green,
                 "callback": self._action_confirm,
             },
             {
-                "label": "✘",
+                "label": deny_label,
+                "emoji": deny_emoji,
                 "style": ButtonStyle.red,
                 "callback": self._action_cancel,
             },
@@ -85,6 +102,27 @@ class ConfirmView(View):
 
         for item in self.button_map:
             self.add_item(ConfirmationButton(item))
+
+    def _resolve_label_and_emoji(
+        self, name: str
+    ) -> Tuple[
+        Optional[str], Optional[Union[discord.PartialEmoji, discord.Emoji, str]]
+    ]:
+        name = re.sub("\ufe0f", "", name)  # remove trailing whitespace
+        emoji = discord.PartialEmoji.from_str(name)
+        label = None
+        if emoji.is_unicode_emoji():
+            if emoji.name not in UNICODE_EMOJI_ENGLISH:
+                label = emoji.name
+        else:
+            # custom emoji
+            emoji = self.bot.get_emoji(emoji.id)
+            if emoji is None:
+                raise ValueError(f'Emoji "{name}" not found.')
+
+        if label:
+            return label, None
+        return None, emoji
 
     @property
     def message(self) -> discord.Message:
