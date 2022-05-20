@@ -3,22 +3,20 @@ from __future__ import annotations
 import asyncio
 import re
 
-from typing import Optional, Union, TYPE_CHECKING
+from typing import Optional, Tuple, Union, TYPE_CHECKING
 
 import discord
 from discord import ButtonStyle, Interaction
 from discord.ui import Button, View
 from emoji import UNICODE_EMOJI_ENGLISH
 
-from core.logging_ext import getLogger
+from core.enums_ext import DMDisabled
 
 
 if TYPE_CHECKING:
     from bot import ModmailBot
 
 MISSING = discord.utils.MISSING
-
-logger = getLogger(__name__)
 
 
 class ContactButton(Button["ContactView"]):
@@ -36,12 +34,12 @@ class ContactButton(Button["ContactView"]):
 
     async def callback(self, interaction: Interaction):
         assert self.view is not None
-        pass
+        await interaction.response.send_message("Done", ephemeral=True)
 
 
 class ContactView(View):
     """
-    Represents press to contact persistent view.
+    Represents a persistent view for contact panel.
 
     Parameters
     -----------
@@ -54,26 +52,32 @@ class ContactView(View):
 
     def __init__(self, bot: ModmailBot, message: discord.Message = MISSING):
         self.bot: ModmailBot = bot
-        self.message: discord.Message = message
         super().__init__(timeout=None)
 
-        asyncio.create_task(self.initialize())
+        if message:
+            item = {
+                "label": self.bot.config["contact_button_label"],
+                "emoji": self._resolve_emoji(self.bot.config["contact_button_emoji"]),
+                "style": ButtonStyle.grey,
+                "custom_id": f"contactbutton-{self.bot.user.id}-{message.channel.id}-{message.id}",
+            }
+            self.add_item(ContactButton(item))
+        else:
+            # this is for startup event
+            # TODO: check whether this can be completely ommited
+            self._setup_persistent()
 
-    async def initialize(self) -> None:
-        if self.message is MISSING:
-            message = await self.fetch_contact_message()
-            if message is None:
-                return
-            self.message = message
-
+    def _setup_persistent(self) -> None:
+        channel_id, message_id = self._resolve_ids()
+        if not channel_id or not message_id:
+            return
         item = {
             "label": self.bot.config["contact_button_label"],
             "emoji": self._resolve_emoji(self.bot.config["contact_button_emoji"]),
             "style": ButtonStyle.grey,
-            "custom_id": f"contactbutton-{self.bot.user.id}-{self.message.channel.id}-{self.message.id}",
+            "custom_id": f"contactbutton-{self.bot.user.id}-{channel_id}-{message_id}",
         }
         self.add_item(ContactButton(item))
-        await self.message.edit(view=self)
 
     def _resolve_emoji(
         self, name: Optional[str]
@@ -95,10 +99,10 @@ class ContactView(View):
 
         return emoji
 
-    async def fetch_contact_message(self) -> Optional[discord.Message]:
-        id_string = self.bot.config.get["contact_message_panel"]
+    def _resolve_ids(self) -> Tuple[Optional[int], Optional[int]]:
+        id_string = self.bot.config["contact_panel_message"]
         if id_string is None:
-            return None
+            return None, None
 
         # copied from discord.py PartialMessageConverter._get_id_matches
         id_regex = re.compile(
@@ -106,24 +110,30 @@ class ContactView(View):
         )
         match = id_regex.match(id_string)
         if match is None:
-            return None
+            return None, None
 
         data = match.groupdict()
-        # only get from main guild
-        channel = self.bot.guild.get_channel(int(data["channel_id"]))
-        if channel is None:
-            return None
+        channel_id = int(data["channel_id"])
+        message_id = int(data["message_id"])
 
-        try:
-            message = await channel.fetch_message(int(data["message_id"]))
-        except discord.NotFound:
-            logger.error(f'Contact message "{id_string}" not found.')
-            return None
-
-        return message
+        return channel_id, message_id
 
     async def interaction_check(self, interaction: Interaction) -> bool:
-        if self.message is MISSING or interaction.user.bot:
+        if interaction.user.bot:
             return False
         # TODO: Check if user is blocked
-        return self.message.guild.get_member(interactin.user.id) is not None
+        if self.bot.config["dm_disabled"] in (
+            DMDisabled.NEW_THREADS,
+            DMDisabled.ALL_THREADS,
+        ):
+            embed = discord.Embed(
+                color=self.bot.error_color,
+                description=self.bot.config["disabled_new_thread_response"],
+            )
+            embed.set_footer(
+                text=self.bot.config["disabled_new_thread_footer"],
+                icon_url=self.bot.guild.icon.url,
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return False
+        return self.bot.guild.get_member(interaction.user.id) is not None

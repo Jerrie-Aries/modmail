@@ -44,6 +44,7 @@ from core.models import SafeFormatter
 from core.thread import ModmailThreadManager
 from core.timeutils import human_timedelta
 from core.utils import human_join, normalize_alias, tryint
+from core.views.contact import ContactView
 
 if TYPE_CHECKING:
     # noinspection PyProtectedMember
@@ -326,6 +327,8 @@ class ModmailBot(commands.Bot):
                 logger.warning("Leaving the server: %s", guild.name)
 
         self._refresh_tree()
+        if self.config.get("contact_panel_message"):
+            self.add_view(ContactView(self))
         self._started = True
 
     def _refresh_tree(self) -> None:
@@ -1540,11 +1543,11 @@ class ModmailBot(commands.Bot):
                 logger.warning("Failed to remove reaction: %s", e)
 
     async def handle_react_to_contact(self, payload: discord.RawReactionActionEvent):
-        react_message_id = tryint(self.config.get("react_to_contact_message"))
-        react_message_emoji = self.config.get("react_to_contact_emoji")
+        contact_panel_message = self.config.get("contact_panel_message")
+        react_emoji = self.config.get("contact_button_emoji")
         if (
-            not all((react_message_id, react_message_emoji))
-            or payload.message_id != react_message_id
+            not all((contact_panel_message, react_emoji))
+            or f"{payload.channel_id}-{payload.message_id}" != contact_panel_message
         ):
             return
         if payload.emoji.is_unicode_emoji():
@@ -1554,7 +1557,7 @@ class ModmailBot(commands.Bot):
         else:
             emoji_fmt = f"<:{payload.emoji.name}:{payload.emoji.id}>"
 
-        if emoji_fmt != react_message_emoji:
+        if emoji_fmt != react_emoji:
             return
         channel = self.get_channel(payload.channel_id)
         if not channel or not isinstance(channel, discord.TextChannel):
@@ -1563,6 +1566,12 @@ class ModmailBot(commands.Bot):
         if not member or member.bot:
             return
         message = await channel.fetch_message(payload.message_id)
+        if message.author.id == self.bot.user.id:
+            # should use button
+            logger.error(
+                "Reaction emoji should not be used on the bot's contact panel."
+            )
+            return
         await message.remove_reaction(payload.emoji, member)  # type: ignore
         await self.add_reaction(message, emoji_fmt)  # bot adds as well
 

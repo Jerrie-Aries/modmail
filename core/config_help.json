@@ -568,24 +568,36 @@
     ],
     "image": "https://i.imgur.com/SKOC42Z.png"
   },
-  "react_to_contact_message": {
+  "contact_panel_message": {
     "default": "None",
-    "description": "A message ID where reactions are tracked. If the `react_to_contact_emoji` is added, the bot opens a thread with them.",
+    "description": "A message ID where interactions or reactions are tracked. When the interaction or reaction is made, the bot opens a thread with them.",
     "examples": [
-      "`{prefix}config set react_to_contact_message 773575608814534717`"
+      "`{prefix}config set contact_panel_message 773575608814534717`",
+      "`{prefix}config set contact_panel_message 923493258231245678-773575608814534717`"
     ],
     "notes": [
-      "See also: `react_to_contact_emoji`."
+      "This depends on the author of the message. If the message author is other than the bot, then reaction will be used. Otherwise, button.",
+      "See also: `contact_button_label`, `contact_button_emoji`"
     ]
   },
-  "react_to_contact_emoji": {
-    "default": "\uD83D\uDCE9",
-    "description": "An emoji which is tracked in `react_to_contact_message`",
+  "contact_button_label": {
+    "default": "Contact",
+    "description": "A label which is shown on the contact button.",
     "examples": [
-      "`{prefix}config set react_to_contact_emoji \u2705`"
+      "`{prefix}config set contact_button_label DM Modmail`"
     ],
     "notes": [
-      "See also: `react_to_contact_message`."
+      "See also: `contact_panel_message`, `contact_button_emoji`"
+    ]
+  },
+  "contact_button_emoji": {
+    "default": "\uD83D\uDCE9",
+    "description": "An emoji which is tracked in `contact_panel_message` reactions, or shown on the contact button.",
+    "examples": [
+      "`{prefix}config set contact_button_emoji \u2705`"
+    ],
+    "notes": [
+      "See also: `contact_panel_message`, `contact_button_label`"
     ]
   },
   "confirm_button_accept": {

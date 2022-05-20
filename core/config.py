@@ -9,7 +9,7 @@ from typing import Any, Dict, ItemsView, Protocol, Optional, TypeVar, TYPE_CHECK
 
 import discord
 import isodate
-from discord.ext.commands import BadArgument
+from discord.ext.commands import BadArgument, MessageConverter
 from dotenv import load_dotenv
 from yarl import URL
 
@@ -98,10 +98,8 @@ class ConfigManager:
         "anon_username": None,
         "anon_avatar_url": None,
         "anon_tag": "Response",
-        # react to contact
-        "react_to_contact_message": None,
-        "react_to_contact_emoji": "📩",
-        "contact_message_panel": None,
+        # contact panel
+        "contact_panel_message": None,
         "contact_button_label": "Contact",
         "contact_button_emoji": "📩",
         # confirm thread creation
@@ -324,28 +322,22 @@ class ConfigManager:
         A method for any additional coro task/check that must be done before setting up the value for
         `config set` command.
         """
-        if key == "react_to_contact_message":
+        if key == "contact_panel_message":
+            converter = MessageConverter()
             try:
-                message = await ctx.fetch_message(int(value))
-            except ValueError:
-                raise InvalidConfigError(f"Unable to convert `{value}` to int.")
-            except discord.NotFound:
+                message = await converter.convert(ctx, value)
+            except Exception as exc:
                 raise InvalidConfigError(
-                    f"Message ID `{value}` can't be found in this channel."
+                    f"Message `{value}` not found.\n**Error:**\n"
+                    f"```py\n{type(exc).__name__}: {str(exc)}\n```"
                 )
-            react_message_emoji = self.bot.config.get("react_to_contact_emoji")
-            await self.bot.add_reaction(message, react_message_emoji)
 
-        if key == "contact_message_panel":
-            try:
-                message = await ctx.fetch_message(int(value))
-            except ValueError:
-                raise InvalidConfigError(f"Unable to convert `{value}` to int.")
-            except discord.NotFound:
-                raise InvalidConfigError(
-                    f"Message ID `{value}` can't be found in this channel."
-                )
-            await message.edit(view=ContactView(ctx.bot, message))
+            if message.author.id != self.bot.user.id:
+                emoji = self.bot.config.get("contact_button_emoji")
+                await self.bot.add_reaction(message, emoji)
+            else:
+                await message.edit(view=ContactView(ctx.bot, message))
+
             value = f"{message.channel.id}-{message.id}"
 
         if key == "mention":
