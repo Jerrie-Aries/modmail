@@ -20,6 +20,7 @@ from core.logging_ext import getLogger
 from core.models import Default
 from core.timeutils import UserFriendlyTime
 from core.utils import strtobool
+from core.views.contact import ContactView
 
 if TYPE_CHECKING:
     from bot import ModmailBot
@@ -100,6 +101,9 @@ class ConfigManager:
         # react to contact
         "react_to_contact_message": None,
         "react_to_contact_emoji": "📩",
+        "contact_message_panel": None,
+        "contact_button_label": "Contact",
+        "contact_button_emoji": "📩",
         # confirm thread creation
         "confirm_thread_creation": False,
         "confirm_thread_creation_title": "Confirm thread creation",
@@ -331,6 +335,18 @@ class ConfigManager:
                 )
             react_message_emoji = self.bot.config.get("react_to_contact_emoji")
             await self.bot.add_reaction(message, react_message_emoji)
+
+        if key == "contact_message_panel":
+            try:
+                message = await ctx.fetch_message(int(value))
+            except ValueError:
+                raise InvalidConfigError(f"Unable to convert `{value}` to int.")
+            except discord.NotFound:
+                raise InvalidConfigError(
+                    f"Message ID `{value}` can't be found in this channel."
+                )
+            await message.edit(view=ContactView(ctx.bot, message))
+            value = f"{message.channel.id}-{message.id}"
 
         if key == "mention":
             ids = list(v for v in value.split(" "))
