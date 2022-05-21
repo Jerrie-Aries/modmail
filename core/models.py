@@ -524,8 +524,7 @@ class ContactPanel:
         """
         Setup a new panel message to listen to. This will replace the old one.
         """
-        if self.view:
-            await self.view.force_stop()
+        await self.stop()
 
         self.channel = message.channel
         self.message = message
@@ -551,7 +550,7 @@ class ContactPanel:
         return channel_id, message_id
 
     def is_set(self) -> bool:
-        pass
+        return self.channel and self.message
 
     def listen_to_button(self) -> bool:
         return self.message and self.message.author.id == self.bot.user.id
@@ -560,9 +559,26 @@ class ContactPanel:
         return self.message and self.message.author.id != self.bot.user.id
 
     def clear(self) -> None:
-        self.message = MISSING
         self.channel = MISSING
+        self.message = MISSING
         self.view = MISSING
+
+    async def stop(self) -> None:
+        if not self.is_set():
+            return
+        if self.listen_to_button():
+            if self.view:
+                await self.view.force_stop()
+        else:
+            emoji = discord.PartialEmoji.from_str(
+                self.bot.config.get("contact_button_emoji")
+            )
+            try:
+                await self.message.remove_reaction(emoji, self.bot.user)
+            except discord.HTTPException:
+                # supress this
+                pass
+        self.clear()
 
     @property
     def id_string(self) -> Optional[str]:

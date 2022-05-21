@@ -428,6 +428,12 @@ class ConfigManager:
 
         return self.__setitem__(key, item)
 
+    async def before_remove(self, key: str) -> str:
+        if key.lower() == "contact_panel_message":
+            await self.bot.contact_panel.stop()
+
+        return key
+
     def remove(self, key: str) -> Any:
         key = key.lower()
         logger.info("Removing %s.", key)

@@ -973,6 +973,7 @@ class Utility(commands.Cog):
         """Delete a set configuration variable."""
         keys = self.bot.config.public_keys
         if key in keys:
+            key = await self.bot.config.before_remove(key)
             self.bot.config.remove(key)
             await self.bot.config.update()
             embed = discord.Embed(
