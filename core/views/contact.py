@@ -38,8 +38,8 @@ class ContactButton(Button["ContactView"]):
 
     async def callback(self, interaction: Interaction):
         assert self.view is not None
-        await self.view.bot.handle_contact_panel_events(interaction=interaction)
         await interaction.response.defer()
+        await self.view.bot.handle_contact_panel_events(interaction=interaction)
 
 
 class ContactView(View):
@@ -98,7 +98,6 @@ class ContactView(View):
             return False
 
         # TODO: Cooldown check to prevent spam.
-
         return self.bot.guild.get_member(interaction.user.id) is not None
 
     async def force_stop(self) -> None:
@@ -106,9 +105,11 @@ class ContactView(View):
         Stops listening to interactions made on this view and removes the view from the message.
         """
         self.stop()
-
-        if self.channel_id and self.message_id:
-            channel = self.bot.guild.get_channel(self.channel_id)
-            if channel is not None:
-                message = await channel.fetch_message(self.message_id)
+        
+        message = self.bot.contact_panel.message
+        if message:
+            try:
                 await message.edit(view=None)
+            except discord.HTTPException:
+                # just supress this
+                return

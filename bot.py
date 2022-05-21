@@ -1625,7 +1625,7 @@ class ModmailBot(commands.Bot):
                 send_func = member.send
             else:
                 kwargs["ephemeral"] = True
-                send_func = interaction.response.send_message
+                send_func = interaction.followup.send
             return await send_func(**kwargs)
 
         if await self.is_blocked(member):
@@ -1635,7 +1635,7 @@ class ModmailBot(commands.Bot):
                     color=self.error_color,
                     description=f"You are currently blocked from contacting {self.user.name}.",
                 )
-                await interaction.response.send_message(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed, ephemeral=True)
 
         modmai_thread = await self.thread_manager.find(recipient=member)
         if modmai_thread:
@@ -1650,7 +1650,7 @@ class ModmailBot(commands.Bot):
                 send_func = self.contact_panel.channel.send
             else:
                 kwargs["ephemeral"] = True
-                send_func = interaction.response.send_message
+                send_func = interaction.followup.send
             await send_func(**kwargs)
         else:
             modmai_thread = await self.thread_manager.create(

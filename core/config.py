@@ -332,7 +332,6 @@ class ConfigManager:
                 )
 
             await self.bot.contact_panel.setup(message)
-
             value = f"{message.channel.id}-{message.id}"
 
         if key == "mention":
