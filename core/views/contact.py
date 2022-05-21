@@ -38,7 +38,6 @@ class ContactButton(Button["ContactView"]):
 
     async def callback(self, interaction: Interaction):
         assert self.view is not None
-        # TODO: Do contact Modmail here
         await self.view.bot.handle_contact_panel_events(interaction=interaction)
         await interaction.response.defer()
 
