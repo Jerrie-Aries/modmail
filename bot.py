@@ -1637,11 +1637,11 @@ class ModmailBot(commands.Bot):
                 )
                 await interaction.followup.send(embed=embed, ephemeral=True)
 
-        modmai_thread = await self.thread_manager.find(recipient=member)
-        if modmai_thread:
+        modmail_thread = await self.thread_manager.find(recipient=member)
+        if modmail_thread:
             desc = "A thread for for you already exists"
-            if modmai_thread.channel:
-                desc += f" in {modmai_thread.channel.mention}"
+            if modmail_thread.channel:
+                desc += f" in {modmail_thread.channel.mention}"
             desc += "."
             embed = discord.Embed(color=self.error_color, description=desc)
             kwargs = {"embed": embed}
@@ -1653,10 +1653,10 @@ class ModmailBot(commands.Bot):
                 send_func = interaction.followup.send
             await send_func(**kwargs)
         else:
-            modmai_thread = await self.thread_manager.create(
+            modmail_thread = await self.thread_manager.create(
                 recipient=member, creator=member, category=None, manual_trigger=False
             )
-            if modmai_thread.cancelled:
+            if modmail_thread.cancelled:
                 return
 
             embed = discord.Embed(
@@ -1673,8 +1673,8 @@ class ModmailBot(commands.Bot):
                 description=f"Thread started by {member.mention}.",
                 color=self.main_color,
             )
-            await modmai_thread.wait_until_ready()
-            await modmai_thread.channel.send(embed=embed)
+            await modmail_thread.wait_until_ready()
+            await modmail_thread.channel.send(embed=embed)
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         await asyncio.gather(
