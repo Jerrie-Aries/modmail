@@ -105,7 +105,7 @@ class ContactView(View):
         Stops listening to interactions made on this view and removes the view from the message.
         """
         self.stop()
-        
+
         message = self.bot.contact_panel.message
         if message:
             try:
