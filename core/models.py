@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import _string
 from copy import deepcopy
+import re
 from string import Formatter
 from types import SimpleNamespace
 from typing import (
@@ -12,6 +13,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    Tuple,
     Union,
     TYPE_CHECKING,
 )
@@ -20,8 +22,10 @@ import discord
 
 from core.enums_ext import ThreadMessageType
 from core.ext import commands
+from core.views.contact import ContactView
 
 if TYPE_CHECKING:
+    from bot import ModmailBot
     from core.types_ext.raw_data import (
         AttachmentPayload,
         UserPayload,
@@ -29,6 +33,7 @@ if TYPE_CHECKING:
         PersistentNoteAuthorPayload,
         PersistentNotePayload,
     )
+    from core.views.contact import ContactView
 
 MISSING = discord.utils.MISSING
 
@@ -479,3 +484,86 @@ class PartialPersistentNote(discord.PartialMessage):
         self.mention_everyone: bool = False
         self.tts: bool = False
         self.author: NoteAuthor = NoteAuthor(data["author"])
+
+
+class ContactPanel:
+    """
+    Represents a class to handle and store all stuff related to contact panel events.
+    """
+
+    # copied from discord.py PartialMessageConverter._get_id_matches
+    ID_REGEX = re.compile(r"(?P<channel_id>[0-9]{15,20})-(?P<message_id>[0-9]{15,20})$")
+
+    def __init__(self, bot: ModmailBot):
+        self.bot: ModmailBot = bot
+        self.view: ContactView = MISSING
+        self.channel: discord.TextChannel = MISSING
+        self.message: discord.Message = MISSING
+
+    async def initialize(self) -> None:
+        """
+        This should be run on startup.
+        """
+        channel_id, message_id = self._resolve_ids()
+        if not all((channel_id, message_id)):
+            return
+
+        channel = self.bot.guild.get_channel(channel_id) or self.bot.get_channel(
+            channel_id
+        )
+        if not isinstance(channel, discord.TextChannel):
+            return
+
+        self.channel = channel
+        self.message = await channel.fetch_message(message_id)
+        if self.listen_to_button():
+            self.view = ContactView(self.bot, self.message)
+            self.bot.add_view(self.view)
+
+    async def setup(self, message: discord.Message) -> None:
+        """
+        Setup a new panel message to listen to. This will replace the old one.
+        """
+        if self.view:
+            await self.view.force_stop()
+
+        self.channel = message.channel
+        self.message = message
+        if self.listen_to_button():
+            self.view = ContactView(self.bot, self.message)
+            await self.message.edit(view=self.view)
+        else:
+            emoji = self.bot.config.get("contact_button_emoji")
+            await self.bot.add_reaction(self.message, emoji)
+
+    def _resolve_ids(self) -> Tuple[Optional[int], Optional[int]]:
+        if self.id_string is None:
+            return None, None
+
+        match = self.ID_REGEX.match(self.id_string)
+        if match is None:
+            return None, None
+
+        data = match.groupdict()
+        channel_id = int(data["channel_id"])
+        message_id = int(data["message_id"])
+
+        return channel_id, message_id
+
+    def is_set(self) -> bool:
+        pass
+
+    def listen_to_button(self) -> bool:
+        return self.message and self.message.author.id == self.bot.user.id
+
+    def listen_to_reaction(self) -> bool:
+        return self.message and self.message.author.id != self.bot.user.id
+
+    def clear(self) -> None:
+        self.message = MISSING
+        self.channel = MISSING
+        self.view = MISSING
+
+    @property
+    def id_string(self) -> Optional[str]:
+        return self.bot.config["contact_panel_message"]

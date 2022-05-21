@@ -1083,18 +1083,8 @@ class Modmail(commands.Cog):
             await ctx.channel.send(embed=embed, delete_after=3)
 
         else:
-            if ctx.message:
-                manual_trigger = (
-                    f"{ctx.channel.id}-{ctx.message.id}"
-                    != self.bot.config.get("contact_panel_message")
-                )
-            else:
-                manual_trigger = True
-            creator = ctx.author if manual_trigger else user
+            creator = ctx.author
             if await self.bot.is_blocked(user):
-                if not manual_trigger:  # react to contact
-                    return
-
                 ref = f"{user.mention} is" if creator != user else "You are"
                 raise commands.BadArgument(
                     f"{ref} currently blocked from contacting {self.bot.user.name}."
@@ -1104,7 +1094,6 @@ class Modmail(commands.Cog):
                 recipient=user,
                 creator=creator,
                 category=category,
-                manual_trigger=manual_trigger,
             )
             if thread.cancelled:
                 return
@@ -1119,15 +1108,13 @@ class Modmail(commands.Cog):
                 if creator.id == user.id:
                     description = "You have opened a Modmail thread."
                 else:
-                    _creator = creator.name
+                    ref = creator.name
                     if self.bot.config.get("thread_contact_anonymously"):
-                        _creator = self.bot.config["anon_username"]
-                        if _creator is None:
+                        ref = self.bot.config["anon_username"]
+                        if ref is None:
                             tag = self.bot.config["mod_tag"]
-                            _creator = (
-                                tag if tag is not None else str(ctx.author.top_role)
-                            )
-                    description = f"{_creator} has opened a Modmail thread."
+                            ref = tag if tag is not None else str(ctx.author.top_role)
+                    description = f"{ref} has opened a Modmail thread."
                 em = discord.Embed(
                     title="New Thread",
                     description=description,
@@ -1145,13 +1132,12 @@ class Modmail(commands.Cog):
             await thread.wait_until_ready()
             await thread.channel.send(embed=embed)
 
-            if manual_trigger:
-                _embed = discord.Embed(
-                    description=f"Thread started in {thread.channel.mention} "
-                    f"by {creator.mention} for {user.mention}.",
-                    color=self.bot.main_color,
-                )
-                await ctx.send(embed=_embed)
+            embed = discord.Embed(
+                description=f"Thread started in {thread.channel.mention} "
+                f"by {creator.mention} for {user.mention}.",
+                color=self.bot.main_color,
+            )
+            await ctx.send(embed=embed)
 
     @commands.group(invoke_without_command=True)
     @checks.has_permissions(PermissionLevel.MODERATOR)

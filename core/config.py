@@ -20,7 +20,6 @@ from core.logging_ext import getLogger
 from core.models import Default
 from core.timeutils import UserFriendlyTime
 from core.utils import strtobool
-from core.views.contact import ContactView
 
 if TYPE_CHECKING:
     from bot import ModmailBot
@@ -319,7 +318,7 @@ class ConfigManager:
 
     async def before_set(self, ctx: Context, key: str, value: VT) -> Optional[str, VT]:
         """
-        A method for any additional coro task/check that must be done before setting up the value for
+        A method for additional coro tasks/checks that must be done before setting up the value for
         `config set` command.
         """
         if key == "contact_panel_message":
@@ -332,11 +331,7 @@ class ConfigManager:
                     f"```py\n{type(exc).__name__}: {str(exc)}\n```"
                 )
 
-            if message.author.id != self.bot.user.id:
-                emoji = self.bot.config.get("contact_button_emoji")
-                await self.bot.add_reaction(message, emoji)
-            else:
-                await message.edit(view=ContactView(ctx.bot, message))
+            await self.bot.contact_panel.setup(message)
 
             value = f"{message.channel.id}-{message.id}"
 

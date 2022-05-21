@@ -40,11 +40,10 @@ from core.errors import (
 )
 from core.ext import commands
 from core.logging_ext import configure_logging, getLogger
-from core.models import SafeFormatter
+from core.models import ContactPanel, SafeFormatter
 from core.thread import ModmailThreadManager
 from core.timeutils import human_timedelta
 from core.utils import human_join, normalize_alias, tryint
-from core.views.contact import ContactView
 
 if TYPE_CHECKING:
     # noinspection PyProtectedMember
@@ -116,7 +115,7 @@ class ModmailBot(commands.Bot):
         self.log_file_path: Path[str] = temp_dir / f"{self.token.split('.')[0]}.log"
         self._configure_logging()
 
-        self.contact_panel_view: ContactView = MISSING
+        self.contact_panel: ContactPanel = ContactPanel(self)
 
         self.startup()
 
@@ -330,7 +329,7 @@ class ModmailBot(commands.Bot):
 
         self._refresh_tree()
         if self.config.get("contact_panel_message"):
-            self.add_view(ContactView(self))
+            await self.contact_panel.initialize()
         self._started = True
 
     def _refresh_tree(self) -> None:
@@ -1592,11 +1591,7 @@ class ModmailBot(commands.Bot):
             if not member or member.bot:
                 return
 
-            channel = self.get_channel(reaction_payload.channel_id)
-            if not channel or not isinstance(channel, discord.TextChannel):
-                return
-
-            message = await channel.fetch_message(reaction_payload.message_id)
+            message = self.contact_panel.message
             await message.remove_reaction(reaction_payload.emoji, member)  # type: ignore
             await self.add_reaction(message, emoji_fmt)  # bot adds as well
             if message.author.id == self.user.id:
@@ -1608,9 +1603,6 @@ class ModmailBot(commands.Bot):
         # interaction event
         else:
             member = self.guild.get_member(interaction.user.id)
-            channel = self.get_channel(self.contact_panel_view.channel_id)
-            if not isinstance(channel, discord.TextChannel):
-                return
 
         if self.config["dm_disabled"] in (
             DMDisabled.NEW_THREADS,
@@ -1647,7 +1639,7 @@ class ModmailBot(commands.Bot):
 
         modmai_thread = await self.thread_manager.find(recipient=member)
         if modmai_thread:
-            desc = "A thread for this user already exists"
+            desc = "A thread for for you already exists"
             if modmai_thread.channel:
                 desc += f" in {modmai_thread.channel.mention}"
             desc += "."
@@ -1655,7 +1647,7 @@ class ModmailBot(commands.Bot):
             kwargs = {"embed": embed}
             if reaction_payload:
                 kwargs["delete_after"] = 3
-                send_func = channel.send
+                send_func = self.contact_panel.channel.send
             else:
                 kwargs["ephemeral"] = True
                 send_func = interaction.response.send_message
@@ -1678,7 +1670,7 @@ class ModmailBot(commands.Bot):
 
             embed = discord.Embed(
                 title="Created thread",
-                description=f"Thread started by {member.mention} for {member.mention}.",
+                description=f"Thread started by {member.mention}.",
                 color=self.main_color,
             )
             await modmai_thread.wait_until_ready()

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from typing import List, Optional, Tuple, TypedDict, Union, TYPE_CHECKING
+from typing import List, Optional, TypedDict, Union, TYPE_CHECKING
 
 import discord
 from discord import ButtonStyle, Interaction
@@ -40,7 +40,7 @@ class ContactButton(Button["ContactView"]):
         assert self.view is not None
         # TODO: Do contact Modmail here
         await self.view.bot.handle_contact_panel_events(interaction=interaction)
-        await interaction.response.send_message("Done", ephemeral=True)
+        await interaction.response.defer()
 
 
 class ContactView(View):
@@ -78,27 +78,6 @@ class ContactView(View):
                 "custom_id": f"contactbutton-{self.bot.user.id}-{self.channel_id}-{self.message_id}",
             }
             self.add_item(ContactButton(payload))
-        else:
-            # this is for startup event
-            self._setup_persistent()
-
-        self.bot.contact_panel_view = self
-
-    def _setup_persistent(self) -> None:
-        channel_id, message_id = self._resolve_ids()
-        if not channel_id or not message_id:
-            return
-
-        self.channel_id = channel_id
-        self.message_id = message_id
-
-        payload: ContactButtonPayload = {
-            "label": self.bot.config["contact_button_label"],
-            "emoji": self._resolve_emoji(self.bot.config["contact_button_emoji"]),
-            "style": ButtonStyle.grey,
-            "custom_id": f"contactbutton-{self.bot.user.id}-{self.channel_id}-{self.message_id}",
-        }
-        self.add_item(ContactButton(payload))
 
     def _resolve_emoji(
         self, name: Optional[str]
@@ -119,25 +98,6 @@ class ContactView(View):
             raise ValueError(f'Emoji "{name}" not found.')
 
         return emoji
-
-    def _resolve_ids(self) -> Tuple[Optional[int], Optional[int]]:
-        id_string = self.bot.config["contact_panel_message"]
-        if id_string is None:
-            return None, None
-
-        # copied from discord.py PartialMessageConverter._get_id_matches
-        id_regex = re.compile(
-            r"(?P<channel_id>[0-9]{15,20})-(?P<message_id>[0-9]{15,20})$"
-        )
-        match = id_regex.match(id_string)
-        if match is None:
-            return None, None
-
-        data = match.groupdict()
-        channel_id = int(data["channel_id"])
-        message_id = int(data["message_id"])
-
-        return channel_id, message_id
 
     async def interaction_check(self, interaction: Interaction) -> bool:
         if interaction.user.bot:
