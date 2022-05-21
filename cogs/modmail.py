@@ -1015,15 +1015,7 @@ class Modmail(commands.Cog):
         sent_emoji, _ = await self.bot.retrieve_emoji()
         await self.bot.add_reaction(ctx.message, sent_emoji)
 
-    @commands.command(
-        extras={
-            "param_descriptions": {
-                "user": "User to contact, may be a user ID, mention or name.",
-                "category": "The category to create the thread. If not specified, defaults to main category.",
-                "option": "Additional option, can be `silent` or `silently`.",
-            }
-        }
-    )
+    @commands.command()
     @checks.has_permissions(PermissionLevel.SUPPORTER)
     async def contact(
         self,
@@ -1092,8 +1084,9 @@ class Modmail(commands.Cog):
 
         else:
             if ctx.message:
-                manual_trigger = ctx.message.id != tryint(
-                    self.bot.config.get("react_to_contact_message")
+                manual_trigger = (
+                    f"{ctx.channel.id}-{ctx.message.id}"
+                    != self.bot.config.get("contact_panel_message")
                 )
             else:
                 manual_trigger = True

@@ -116,6 +116,8 @@ class ModmailBot(commands.Bot):
         self.log_file_path: Path[str] = temp_dir / f"{self.token.split('.')[0]}.log"
         self._configure_logging()
 
+        self.contact_panel_view: ContactView = MISSING
+
         self.startup()
 
     def _configure_logging(self):
@@ -1542,38 +1544,73 @@ class ModmailBot(commands.Bot):
             except (discord.HTTPException, discord.InvalidArgument) as e:
                 logger.warning("Failed to remove reaction: %s", e)
 
-    async def handle_react_to_contact(self, payload: discord.RawReactionActionEvent):
-        contact_panel_message = self.config.get("contact_panel_message")
-        react_emoji = self.config.get("contact_button_emoji")
-        if (
-            not all((contact_panel_message, react_emoji))
-            or f"{payload.channel_id}-{payload.message_id}" != contact_panel_message
-        ):
-            return
-        if payload.emoji.is_unicode_emoji():
-            emoji_fmt = payload.emoji.name
-        elif payload.emoji.animated:
-            emoji_fmt = f"<a:{payload.emoji.name}:{payload.emoji.id}>"
-        else:
-            emoji_fmt = f"<:{payload.emoji.name}:{payload.emoji.id}>"
-
-        if emoji_fmt != react_emoji:
-            return
-        channel = self.get_channel(payload.channel_id)
-        if not channel or not isinstance(channel, discord.TextChannel):
-            return
-        member = channel.guild.get_member(payload.user_id)
-        if not member or member.bot:
-            return
-        message = await channel.fetch_message(payload.message_id)
-        if message.author.id == self.bot.user.id:
-            # should use button
-            logger.error(
-                "Reaction emoji should not be used on the bot's contact panel."
+    async def handle_contact_panel_events(
+        self,
+        *,
+        reaction_payload: discord.RawReactionActionEvent = MISSING,
+        interaction: discord.Interaction = MISSING,
+    ) -> None:
+        if reaction_payload and interaction:
+            raise ValueError(
+                'Cannot pass both "reaction_payload" and "interaction" for "handle_contact_panel_events".'
             )
+        if not reaction_payload and not interaction:
+            raise ValueError(
+                'One of the "reaction_payload" or "interaction" parameter is '
+                'required for "handle_contact_panel_events".'
+            )
+
+        contact_panel_message = self.config.get("contact_panel_message")
+        panel_emoji = self.config.get("contact_button_emoji")
+        if not all((contact_panel_message, panel_emoji)):
             return
-        await message.remove_reaction(payload.emoji, member)  # type: ignore
-        await self.add_reaction(message, emoji_fmt)  # bot adds as well
+
+        # reaction event
+        if reaction_payload:
+            if (
+                f"{reaction_payload.channel_id}-{reaction_payload.message_id}"
+                != contact_panel_message
+            ):
+                return
+
+            if reaction_payload.emoji.is_unicode_emoji():
+                emoji_fmt = reaction_payload.emoji.name
+            elif reaction_payload.emoji.animated:
+                emoji_fmt = (
+                    f"<a:{reaction_payload.emoji.name}:{reaction_payload.emoji.id}>"
+                )
+            else:
+                emoji_fmt = (
+                    f"<:{reaction_payload.emoji.name}:{reaction_payload.emoji.id}>"
+                )
+
+            if emoji_fmt != panel_emoji:
+                return
+
+            # check if the user exists in the main guild
+            member = self.guild.get_member(reaction_payload.user_id)
+            if not member or member.bot:
+                return
+
+            channel = self.get_channel(reaction_payload.channel_id)
+            if not channel or not isinstance(channel, discord.TextChannel):
+                return
+
+            message = await channel.fetch_message(reaction_payload.message_id)
+            await message.remove_reaction(reaction_payload.emoji, member)  # type: ignore
+            await self.add_reaction(message, emoji_fmt)  # bot adds as well
+            if message.author.id == self.user.id:
+                # should use button
+                logger.error(
+                    "Reaction emoji should not be used on the bot's contact panel."
+                )
+                return
+        # interaction event
+        else:
+            member = self.guild.get_member(interaction.user.id)
+            channel = self.get_channel(self.contact_panel_view.channel_id)
+            if not isinstance(channel, discord.TextChannel):
+                return
 
         if self.config["dm_disabled"] in (
             DMDisabled.NEW_THREADS,
@@ -1588,18 +1625,69 @@ class ModmailBot(commands.Bot):
                 icon_url=self.guild.icon.url,
             )
             logger.info(
-                "A new thread using react to contact was blocked from %s due to disabled Modmail.",
+                "A new thread using contact panel was blocked from %s due to disabled Modmail.",
                 member,
             )
-            return await member.send(embed=embed)
+            kwargs = {"embed": embed}
+            if reaction_payload:
+                send_func = member.send
+            else:
+                kwargs["ephemeral"] = True
+                send_func = interaction.response.send_message
+            return await send_func(**kwargs)
 
-        ctx = await self.create_context(message)
-        await ctx.invoke(self.get_command("contact"), user=member)
+        if await self.is_blocked(member):
+            # we just ignore reaction
+            if interaction:
+                embed = discord.Embed(
+                    color=self.error_color,
+                    description=f"You are currently blocked from contacting {self.user.name}.",
+                )
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        modmai_thread = await self.thread_manager.find(recipient=member)
+        if modmai_thread:
+            desc = "A thread for this user already exists"
+            if modmai_thread.channel:
+                desc += f" in {modmai_thread.channel.mention}"
+            desc += "."
+            embed = discord.Embed(color=self.error_color, description=desc)
+            kwargs = {"embed": embed}
+            if reaction_payload:
+                kwargs["delete_after"] = 3
+                send_func = channel.send
+            else:
+                kwargs["ephemeral"] = True
+                send_func = interaction.response.send_message
+            await send_func(**kwargs)
+        else:
+            modmai_thread = await self.thread_manager.create(
+                recipient=member, creator=member, category=None, manual_trigger=False
+            )
+            if modmai_thread.cancelled:
+                return
+
+            embed = discord.Embed(
+                title="New thread",
+                description="You have opened Modmail thread.",
+                color=self.main_color,
+                timestamp=discord.utils.utcnow(),
+            )
+            embed.set_footer(icon_url=member.display_avatar.url)
+            await member.send(embed=embed)
+
+            embed = discord.Embed(
+                title="Created thread",
+                description=f"Thread started by {member.mention} for {member.mention}.",
+                color=self.main_color,
+            )
+            await modmai_thread.wait_until_ready()
+            await modmai_thread.channel.send(embed=embed)
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         await asyncio.gather(
             self.handle_reaction_events(payload),
-            self.handle_react_to_contact(payload),
+            self.handle_contact_panel_events(reaction_payload=payload),
         )
 
     async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent):

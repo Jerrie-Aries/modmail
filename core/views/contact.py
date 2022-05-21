@@ -1,20 +1,24 @@
 from __future__ import annotations
 
-import asyncio
 import re
 
-from typing import Optional, Tuple, Union, TYPE_CHECKING
+from typing import List, Optional, Tuple, TypedDict, Union, TYPE_CHECKING
 
 import discord
 from discord import ButtonStyle, Interaction
 from discord.ui import Button, View
 from emoji import UNICODE_EMOJI_ENGLISH
 
-from core.enums_ext import DMDisabled
-
 
 if TYPE_CHECKING:
     from bot import ModmailBot
+
+    class ContactButtonPayload(TypedDict):
+        label: str
+        emoji: str
+        style: ButtonStyle
+        custom_id: str
+
 
 MISSING = discord.utils.MISSING
 
@@ -24,22 +28,27 @@ class ContactButton(Button["ContactView"]):
     The contact button.
     """
 
-    def __init__(self, item):
+    def __init__(self, payload: ContactButtonPayload):
         super().__init__(
-            label=item["label"],
-            emoji=item["emoji"],
+            label=payload["label"],
+            emoji=payload["emoji"],
             style=ButtonStyle.grey,
-            custom_id=item["custom_id"],
+            custom_id=payload["custom_id"],
         )
 
     async def callback(self, interaction: Interaction):
         assert self.view is not None
+        # TODO: Do contact Modmail here
+        await self.view.bot.handle_contact_panel_events(interaction=interaction)
         await interaction.response.send_message("Done", ephemeral=True)
 
 
 class ContactView(View):
     """
     Represents a persistent view for contact panel.
+
+    This view can only be added to the bot's message (discord limitation)
+    and in the main guild.
 
     Parameters
     -----------
@@ -50,34 +59,46 @@ class ContactView(View):
 
     """
 
+    children: List[ContactButton]
+
     def __init__(self, bot: ModmailBot, message: discord.Message = MISSING):
         self.bot: ModmailBot = bot
         super().__init__(timeout=None)
 
+        self.channel_id: int = MISSING
+        self.message_id: int = MISSING
+
         if message:
-            item = {
+            self.channel_id = message.channel.id
+            self.message_id = message.id
+            payload: ContactButtonPayload = {
                 "label": self.bot.config["contact_button_label"],
                 "emoji": self._resolve_emoji(self.bot.config["contact_button_emoji"]),
                 "style": ButtonStyle.grey,
-                "custom_id": f"contactbutton-{self.bot.user.id}-{message.channel.id}-{message.id}",
+                "custom_id": f"contactbutton-{self.bot.user.id}-{self.channel_id}-{self.message_id}",
             }
-            self.add_item(ContactButton(item))
+            self.add_item(ContactButton(payload))
         else:
             # this is for startup event
-            # TODO: check whether this can be completely ommited
             self._setup_persistent()
+
+        self.bot.contact_panel_view = self
 
     def _setup_persistent(self) -> None:
         channel_id, message_id = self._resolve_ids()
         if not channel_id or not message_id:
             return
-        item = {
+
+        self.channel_id = channel_id
+        self.message_id = message_id
+
+        payload: ContactButtonPayload = {
             "label": self.bot.config["contact_button_label"],
             "emoji": self._resolve_emoji(self.bot.config["contact_button_emoji"]),
             "style": ButtonStyle.grey,
-            "custom_id": f"contactbutton-{self.bot.user.id}-{channel_id}-{message_id}",
+            "custom_id": f"contactbutton-{self.bot.user.id}-{self.channel_id}-{self.message_id}",
         }
-        self.add_item(ContactButton(item))
+        self.add_item(ContactButton(payload))
 
     def _resolve_emoji(
         self, name: Optional[str]
@@ -121,19 +142,19 @@ class ContactView(View):
     async def interaction_check(self, interaction: Interaction) -> bool:
         if interaction.user.bot:
             return False
-        # TODO: Check if user is blocked
-        if self.bot.config["dm_disabled"] in (
-            DMDisabled.NEW_THREADS,
-            DMDisabled.ALL_THREADS,
-        ):
-            embed = discord.Embed(
-                color=self.bot.error_color,
-                description=self.bot.config["disabled_new_thread_response"],
-            )
-            embed.set_footer(
-                text=self.bot.config["disabled_new_thread_footer"],
-                icon_url=self.bot.guild.icon.url,
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return False
+
+        # TODO: Cooldown check to prevent spam.
+
         return self.bot.guild.get_member(interaction.user.id) is not None
+
+    async def force_stop(self) -> None:
+        """
+        Stops listening to interactions made on this view and removes the view from the message.
+        """
+        self.stop()
+
+        if self.channel_id and self.message_id:
+            channel = self.bot.guild.get_channel(self.channel_id)
+            if channel is not None:
+                message = await channel.fetch_message(self.message_id)
+                await message.edit(view=None)
