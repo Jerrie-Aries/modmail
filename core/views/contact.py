@@ -65,17 +65,12 @@ class ContactView(View):
         self.bot: ModmailBot = bot
         super().__init__(timeout=None)
 
-        self.channel_id: int = MISSING
-        self.message_id: int = MISSING
-
         if message:
-            self.channel_id = message.channel.id
-            self.message_id = message.id
             payload: ContactButtonPayload = {
                 "label": self.bot.config["contact_button_label"],
                 "emoji": self._resolve_emoji(self.bot.config["contact_button_emoji"]),
                 "style": ButtonStyle.grey,
-                "custom_id": f"contactbutton-{self.bot.user.id}-{self.channel_id}-{self.message_id}",
+                "custom_id": f"contactbutton-{self.bot.user.id}-{message.channel.id}-{message.id}",
             }
             self.add_item(ContactButton(payload))
 
